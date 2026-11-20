@@ -19,11 +19,21 @@ export function AppShell() {
         Skip to content
       </a>
       <header className="topbar">
-        <span className="brand">{APP_NAME}</span>
-        <nav className="topnav" aria-label="Main">
+        <div className="brand">
+          <span className="logo" aria-hidden="true" />
+          {APP_NAME}
+        </div>
+        <nav className="modules" aria-label="Modules">
           <NavLink to="/" end>
             Library
           </NavLink>
+          <span
+            className="module disabled"
+            aria-disabled="true"
+            title="Open a photo to start editing"
+          >
+            Develop
+          </span>
         </nav>
         <div className="topbar-user">
           <span className="user-email">{user?.email}</span>

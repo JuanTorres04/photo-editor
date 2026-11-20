@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Navigate } from "react-router-dom";
+import { HistogramArt } from "../components/HistogramArt";
 import { APP_NAME } from "../lib/config";
 import { getErrorMessage } from "../lib/errors";
 import { useAuthStore } from "../store/authStore";
@@ -49,75 +50,93 @@ export function AuthPage() {
 
   return (
     <div className="auth-page">
-      <form className="auth-card" onSubmit={(e) => void handleSubmit(e)}>
-        <div className="auth-brand">
-          <span className="brand-mark">{APP_NAME}</span>
-          <h1>{isLogin ? "Welcome back" : "Create your account"}</h1>
-          <p className="auth-sub">
+      <section className="auth-art" aria-hidden="true">
+        <h2>Every photo in its best light.</h2>
+        <p>
+          Edit in your browser with the tools pros use. Your originals are never
+          changed.
+        </p>
+        <HistogramArt />
+      </section>
+
+      <div className="auth-side">
+        <form className="auth-card" onSubmit={(e) => void handleSubmit(e)}>
+          <div className="auth-brand">
+            <div className="brand">
+              <span className="logo" aria-hidden="true" />
+              {APP_NAME}
+            </div>
+            <h1>{isLogin ? "Sign in" : "Create your account"}</h1>
+            <p className="auth-sub">
+              {isLogin
+                ? "Welcome back. Pick up where you left off."
+                : "It takes a few seconds and it's free."}
+            </p>
+          </div>
+
+          <div className="field">
+            <label htmlFor="email">Email</label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              required
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? "auth-error" : undefined}
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="password">Password</label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete={isLogin ? "current-password" : "new-password"}
+              minLength={isLogin ? undefined : 8}
+              required
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? "auth-error" : undefined}
+            />
+          </div>
+
+          {error && (
+            <p id="auth-error" className="form-error" role="alert">
+              {error}
+            </p>
+          )}
+          {notice && (
+            <p className="form-notice" role="status">
+              {notice}
+            </p>
+          )}
+
+          <button className="primary" type="submit" disabled={loading}>
+            {loading
+              ? "Please wait..."
+              : isLogin
+                ? "Sign in"
+                : "Create account"}
+          </button>
+
+          <button
+            className="ghost switch"
+            type="button"
+            onClick={() => {
+              setError(null);
+              setNotice(null);
+              setMode(isLogin ? "register" : "login");
+            }}
+          >
             {isLogin
-              ? "Sign in to your photo library."
-              : "Edit photos in your browser. Your originals are never changed."}
-          </p>
-        </div>
-
-        <div className="field">
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            required
-            aria-invalid={error ? true : undefined}
-            aria-describedby={error ? "auth-error" : undefined}
-          />
-        </div>
-
-        <div className="field">
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete={isLogin ? "current-password" : "new-password"}
-            minLength={isLogin ? undefined : 8}
-            required
-            aria-invalid={error ? true : undefined}
-            aria-describedby={error ? "auth-error" : undefined}
-          />
-        </div>
-
-        {error && (
-          <p id="auth-error" className="form-error" role="alert">
-            {error}
-          </p>
-        )}
-        {notice && (
-          <p className="form-notice" role="status">
-            {notice}
-          </p>
-        )}
-
-        <button className="primary" type="submit" disabled={loading}>
-          {loading ? "Please wait..." : isLogin ? "Sign in" : "Create account"}
-        </button>
-
-        <button
-          className="ghost switch"
-          type="button"
-          onClick={() => {
-            setError(null);
-            setNotice(null);
-            setMode(isLogin ? "register" : "login");
-          }}
-        >
-          {isLogin
-            ? "New here? Create an account"
-            : "Already have an account? Sign in"}
-        </button>
-      </form>
+              ? "New here? Create an account"
+              : "Already have an account? Sign in"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
