@@ -1,1 +1,1 @@
-export const APP_NAME = "Lumen";
+export const APP_NAME = "Spectral";

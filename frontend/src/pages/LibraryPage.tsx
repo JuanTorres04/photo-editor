@@ -13,11 +13,13 @@ import { MAX_PHOTOS } from "../lib/photos";
 import { useAuthStore } from "../store/authStore";
 import { useLibraryStore } from "../store/libraryStore";
 import { useToastStore } from "../store/toastStore";
+import { useNavigate } from "react-router-dom";
 
 const URL_REFRESH_MS = 50 * 60 * 1000;
 
 export function LibraryPage() {
   const user = useAuthStore((state) => state.user);
+  const navigate = useNavigate();
   const photos = useLibraryStore((state) => state.photos);
   const urls = useLibraryStore((state) => state.urls);
   const status = useLibraryStore((state) => state.status);
@@ -140,6 +142,9 @@ export function LibraryPage() {
             onChange={(e) => setTileSize(Number(e.target.value))}
           />
         </div>
+        <button disabled={!selected} onClick={() => selected && navigate(`/develop/${selected.id}`)}>
+          Develop
+        </button>
         <button disabled={!selected} onClick={() => setConfirmOpen(true)}>
           Delete
         </button>
@@ -194,6 +199,7 @@ export function LibraryPage() {
                 url={urls[photo.id]}
                 selected={photo.id === selectedId}
                 onSelect={select}
+                onOpen={(id) => navigate(`/develop/${id}`)}
               />
             ))}
           </div>

@@ -103,3 +103,21 @@ export async function deletePhoto(photo: Photo): Promise<void> {
     .from(BUCKET)
     .remove([photo.original_path, photo.preview_path, photo.thumb_path]);
 }
+
+export async function getPhoto(id: string): Promise<Photo | null> {
+  const { data, error } = await supabase
+    .from("photos")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function downloadPreview(photo: Photo): Promise<Blob> {
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .download(photo.preview_path);
+  if (error) throw error;
+  return data;
+}

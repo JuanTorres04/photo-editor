@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useMatch } from "react-router-dom";
 import { APP_NAME } from "../lib/config";
 import { getErrorMessage } from "../lib/errors";
 import { useAuthStore } from "../store/authStore";
@@ -8,6 +8,7 @@ export function AppShell() {
   const user = useAuthStore((state) => state.user);
   const signOut = useAuthStore((state) => state.signOut);
   const push = useToastStore((state) => state.push);
+  const developMatch = useMatch("/develop/:photoId");
 
   const handleSignOut = () => {
     signOut().catch((err: unknown) => push(getErrorMessage(err)));
@@ -27,13 +28,19 @@ export function AppShell() {
           <NavLink to="/" end>
             Library
           </NavLink>
-          <span
-            className="module disabled"
-            aria-disabled="true"
-            title="Open a photo to start editing"
-          >
-            Develop
-          </span>
+          {developMatch ? (
+            <span className="module active" aria-current="page">
+              Develop
+            </span>
+          ) : (
+            <span
+              className="module disabled"
+              aria-disabled="true"
+              title="Select a photo in the Library, then click Develop"
+            >
+              Develop
+            </span>
+          )}
         </nav>
         <div className="topbar-user">
           <span className="user-email">{user?.email}</span>

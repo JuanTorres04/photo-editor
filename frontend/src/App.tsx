@@ -6,6 +6,7 @@ import { Toaster } from "./components/Toaster";
 import { AuthPage } from "./pages/AuthPage";
 import { LibraryPage } from "./pages/LibraryPage";
 import { useAuthStore } from "./store/authStore";
+import { DevelopPage } from "./pages/DevelopPage";
 
 export default function App() {
   const init = useAuthStore((state) => state.init);
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="/login" element={<AuthPage />} />
           <Route element={<RequireAuth />}>
             <Route path="/" element={<LibraryPage />} />
+            <Route path="/develop/:photoId" element={<DevelopPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

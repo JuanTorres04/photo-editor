@@ -5,9 +5,16 @@ interface PhotoTileProps {
   url: string | undefined;
   selected: boolean;
   onSelect: (id: string) => void;
+  onOpen: (id: string) => void;
 }
 
-export function PhotoTile({ photo, url, selected, onSelect }: PhotoTileProps) {
+export function PhotoTile({
+  photo,
+  url,
+  selected,
+  onSelect,
+  onOpen,
+}: PhotoTileProps) {
   const label = photo.title || "Untitled photo";
 
   return (
@@ -16,6 +23,7 @@ export function PhotoTile({ photo, url, selected, onSelect }: PhotoTileProps) {
       className="tile"
       aria-pressed={selected}
       onClick={() => onSelect(photo.id)}
+      onDoubleClick={() => onOpen(photo.id)}
     >
       {url ? (
         <img
