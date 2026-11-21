@@ -15,6 +15,7 @@ import { getErrorMessage } from "../lib/errors";
 import { downloadPreview, getPhoto } from "../lib/photos";
 import type { Photo } from "../lib/photos";
 import { useDevelopStore } from "../store/developStore";
+import { ExportDialog } from "../components/ExportDialog";
 
 type LoadState =
   | { status: "loading" }
@@ -39,6 +40,7 @@ export function DevelopPage() {
   const [glError, setGlError] = useState<string | null>(null);
   const [comparing, setComparing] = useState(false);
   const [scope, setScope] = useState<ScopeData | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<DevelopRenderer | null>(null);
 
@@ -266,6 +268,9 @@ export function DevelopPage() {
                   </button>
                 )}
               </span>
+              <button className="primary" onClick={() => setExportOpen(true)}>
+                Export
+              </button>
             </>
           )}
         </div>
@@ -351,6 +356,9 @@ export function DevelopPage() {
           </>
         )}
       </aside>
+      {view.status === "ready" && (
+        <ExportDialog photo={view.photo} open={exportOpen} onClose={() => setExportOpen(false)} />
+      )}
     </div>
   );
 }

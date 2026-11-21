@@ -1001,3 +1001,66 @@ input[type="range"].adjust-range::-moz-range-track {
   color: var(--text-faint);
   font-size: 0.85rem;
 }
+
+/* ---------- export ---------- */
+.stage-bar .primary {
+  padding: 0.35rem 0.9rem;
+}
+.export-dialog {
+  width: min(460px, calc(100vw - 2rem));
+}
+.export-group {
+  display: grid;
+  gap: 0.4rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  border: 0;
+}
+.export-group legend {
+  padding: 0;
+  margin-bottom: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+.format-row {
+  display: flex;
+  gap: 0.5rem;
+}
+.format-row .choice {
+  flex: 1;
+  justify-content: center;
+}
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  cursor: pointer;
+  background: var(--panel-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+}
+.choice:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.choice input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+.choice-meta {
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.quality-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+.export-dialog .muted,
+.export-dialog .form-error {
+  margin-top: 0.75rem;
+}

@@ -276,4 +276,10 @@ export class DevelopRenderer {
     this.gl.deleteTexture(this.texture);
     this.gl.deleteProgram(this.program);
   }
+
+  /** Frees the whole GPU context. Only for one-off canvases, like the one used for export. */
+  release(): void {
+    this.dispose();
+    this.gl.getExtension("WEBGL_lose_context")?.loseContext();
+  }
 }

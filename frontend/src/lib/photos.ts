@@ -121,3 +121,11 @@ export async function downloadPreview(photo: Photo): Promise<Blob> {
   if (error) throw error;
   return data;
 }
+
+export async function downloadOriginal(photo: Photo): Promise<Blob> {
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .download(photo.original_path);
+  if (error) throw error;
+  return data;
+}
