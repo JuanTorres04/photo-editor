@@ -1,4 +1,8 @@
+import { computeScopes } from "./scopes";
+import type { ScopeData } from "./scopes";
 import type { EditSettings } from "./settings";
+
+const SCOPE_EDGE = 256;
 
 const VERTEX = `#version 300 es
 out vec2 v_uv;
@@ -121,6 +125,11 @@ export class DevelopRenderer {
   private readonly program: WebGLProgram;
   private readonly texture: WebGLTexture;
   private readonly uniforms: Record<UniformName, WebGLUniformLocation | null>;
+  private readonly scopeTexture: WebGLTexture;
+  private readonly scopeFbo: WebGLFramebuffer;
+  private readonly scopeWidth: number;
+  private readonly scopeHeight: number;
+  private readonly scopePixels: Uint8Array;
 
   constructor(canvas: HTMLCanvasElement, image: ImageBitmap) {
     const gl = canvas.getContext("webgl2", { antialias: false, alpha: false });
@@ -156,20 +165,69 @@ export class DevelopRenderer {
       UNIFORM_NAMES.map((name) => [name, gl.getUniformLocation(program, name)]),
     ) as Record<UniformName, WebGLUniformLocation | null>;
 
+    // The photo itself, with mipmaps so the small scope copy is sampled smoothly
     const texture = gl.createTexture();
     if (!texture) throw new Error("Could not create a graphics texture.");
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(
+      gl.TEXTURE_2D,
+      gl.TEXTURE_MIN_FILTER,
+      gl.LINEAR_MIPMAP_LINEAR,
+    );
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, image);
+    gl.generateMipmap(gl.TEXTURE_2D);
     this.texture = texture;
+
+    // A small off-screen target used to measure the edited photo for the scopes
+    const scale = Math.min(1, SCOPE_EDGE / Math.max(image.width, image.height));
+    this.scopeWidth = Math.max(1, Math.round(image.width * scale));
+    this.scopeHeight = Math.max(1, Math.round(image.height * scale));
+    this.scopePixels = new Uint8Array(this.scopeWidth * this.scopeHeight * 4);
+
+    const scopeTexture = gl.createTexture();
+    if (!scopeTexture) throw new Error("Could not create a graphics texture.");
+    gl.bindTexture(gl.TEXTURE_2D, scopeTexture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA8,
+      this.scopeWidth,
+      this.scopeHeight,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      null,
+    );
+    this.scopeTexture = scopeTexture;
+
+    const scopeFbo = gl.createFramebuffer();
+    if (!scopeFbo) throw new Error("Could not create a graphics buffer.");
+    gl.bindFramebuffer(gl.FRAMEBUFFER, scopeFbo);
+    gl.framebufferTexture2D(
+      gl.FRAMEBUFFER,
+      gl.COLOR_ATTACHMENT0,
+      gl.TEXTURE_2D,
+      scopeTexture,
+      0,
+    );
+    const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    if (status !== gl.FRAMEBUFFER_COMPLETE) {
+      throw new Error("Your graphics card can't render the histogram.");
+    }
+    this.scopeFbo = scopeFbo;
   }
 
-  render(settings: EditSettings): void {
+  private draw(settings: EditSettings, width: number, height: number): void {
     const { gl, uniforms } = this;
-    gl.viewport(0, 0, this.width, this.height);
+    gl.viewport(0, 0, width, height);
     gl.useProgram(this.program);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
@@ -189,7 +247,32 @@ export class DevelopRenderer {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
+  render(settings: EditSettings): void {
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+    this.draw(settings, this.width, this.height);
+  }
+
+  /** Renders a small copy of the edited photo and counts its pixels for the histogram and waveform. */
+  readScopes(settings: EditSettings): ScopeData {
+    const { gl } = this;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.scopeFbo);
+    this.draw(settings, this.scopeWidth, this.scopeHeight);
+    gl.readPixels(
+      0,
+      0,
+      this.scopeWidth,
+      this.scopeHeight,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      this.scopePixels,
+    );
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return computeScopes(this.scopePixels, this.scopeWidth, this.scopeHeight);
+  }
+
   dispose(): void {
+    this.gl.deleteFramebuffer(this.scopeFbo);
+    this.gl.deleteTexture(this.scopeTexture);
     this.gl.deleteTexture(this.texture);
     this.gl.deleteProgram(this.program);
   }

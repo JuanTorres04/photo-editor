@@ -5,7 +5,12 @@ import { saveEdit } from "../lib/edits";
 import { useToastStore } from "./toastStore";
 
 const SAVE_DELAY_MS = 700;
+const GROUP_WINDOW_MS = 600;
+const MAX_HISTORY = 100;
+
 let timer: number | undefined;
+let lastKey: SettingKey | null = null;
+let lastChange = 0;
 
 interface DevelopState {
   photoId: string | null;
@@ -13,10 +18,15 @@ interface DevelopState {
   savedJson: string;
   saving: boolean;
   saveFailed: boolean;
+  past: EditSettings[];
+  future: EditSettings[];
   open: (photoId: string, settings: EditSettings) => void;
   setValue: (key: SettingKey, value: number) => void;
   resetKey: (key: SettingKey) => void;
   resetAll: () => void;
+  applySettings: (settings: EditSettings) => void;
+  undo: () => void;
+  redo: () => void;
   flush: () => Promise<void>;
 }
 
@@ -26,33 +36,86 @@ export const useDevelopStore = create<DevelopState>((set, get) => {
     timer = window.setTimeout(() => void get().flush(), SAVE_DELAY_MS);
   };
 
+  /** Remembers the current settings so the next change can be undone. */
+  const remember = () => {
+    const { settings, past } = get();
+    set({ past: [...past, settings].slice(-MAX_HISTORY), future: [] });
+  };
+
   return {
     photoId: null,
     settings: DEFAULT_SETTINGS,
     savedJson: JSON.stringify(DEFAULT_SETTINGS),
     saving: false,
     saveFailed: false,
+    past: [],
+    future: [],
 
     open: (photoId, settings) => {
       window.clearTimeout(timer);
+      lastKey = null;
       set({
         photoId,
         settings,
         savedJson: JSON.stringify(settings),
         saving: false,
         saveFailed: false,
+        past: [],
+        future: [],
       });
     },
 
     setValue: (key, value) => {
+      // One drag of a slider is one undo step: only start a new step for a different slider or after a pause
+      const now = Date.now();
+      if (key !== lastKey || now - lastChange > GROUP_WINDOW_MS) remember();
+      lastKey = key;
+      lastChange = now;
       set((state) => ({ settings: { ...state.settings, [key]: value } }));
       schedule();
     },
 
-    resetKey: (key) => get().setValue(key, DEFAULT_SETTINGS[key]),
+    resetKey: (key) => {
+      lastKey = null;
+      remember();
+      set((state) => ({
+        settings: { ...state.settings, [key]: DEFAULT_SETTINGS[key] },
+      }));
+      schedule();
+    },
 
-    resetAll: () => {
-      set({ settings: DEFAULT_SETTINGS });
+    applySettings: (next) => {
+      lastKey = null;
+      remember();
+      set({ settings: next });
+      schedule();
+    },
+
+    resetAll: () => get().applySettings(DEFAULT_SETTINGS),
+
+    undo: () => {
+      const { past, future, settings } = get();
+      const previous = past[past.length - 1];
+      if (!previous) return;
+      lastKey = null;
+      set({
+        settings: previous,
+        past: past.slice(0, -1),
+        future: [settings, ...future].slice(0, MAX_HISTORY),
+      });
+      schedule();
+    },
+
+    redo: () => {
+      const { past, future, settings } = get();
+      const next = future[0];
+      if (!next) return;
+      lastKey = null;
+      set({
+        settings: next,
+        past: [...past, settings].slice(-MAX_HISTORY),
+        future: future.slice(1),
+      });
       schedule();
     },
 

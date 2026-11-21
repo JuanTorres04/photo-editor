@@ -1,8 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AdjustSlider } from "../components/AdjustSlider";
+import { Scopes } from "../components/Scopes";
+import { VersionsPanel } from "../components/VersionsPanel";
 import { DevelopRenderer } from "../develop/renderer";
-import { SLIDER_GROUPS, isDefault } from "../develop/settings";
+import type { ScopeData } from "../develop/scopes";
+import {
+  DEFAULT_SETTINGS,
+  SLIDER_GROUPS,
+  isDefault,
+} from "../develop/settings";
 import { loadEdit } from "../lib/edits";
 import { getErrorMessage } from "../lib/errors";
 import { downloadPreview, getPhoto } from "../lib/photos";
@@ -17,12 +24,21 @@ type LoadState =
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable || target instanceof HTMLTextAreaElement)
+    return true;
+  return target instanceof HTMLInputElement && target.type !== "range";
+}
+
 export function DevelopPage() {
   const { photoId } = useParams<{ photoId: string }>();
   const navigate = useNavigate();
   const [load, setLoad] = useState<LoadState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   const [glError, setGlError] = useState<string | null>(null);
+  const [comparing, setComparing] = useState(false);
+  const [scope, setScope] = useState<ScopeData | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<DevelopRenderer | null>(null);
 
@@ -30,9 +46,14 @@ export function DevelopPage() {
   const savedJson = useDevelopStore((state) => state.savedJson);
   const saving = useDevelopStore((state) => state.saving);
   const saveFailed = useDevelopStore((state) => state.saveFailed);
+  const canUndo = useDevelopStore((state) => state.past.length > 0);
+  const canRedo = useDevelopStore((state) => state.future.length > 0);
   const setValue = useDevelopStore((state) => state.setValue);
   const resetKey = useDevelopStore((state) => state.resetKey);
   const resetAll = useDevelopStore((state) => state.resetAll);
+  const applySettings = useDevelopStore((state) => state.applySettings);
+  const undo = useDevelopStore((state) => state.undo);
+  const redo = useDevelopStore((state) => state.redo);
   const flush = useDevelopStore((state) => state.flush);
 
   const invalidId = !photoId || !UUID.test(photoId);
@@ -40,6 +61,8 @@ export function DevelopPage() {
   const readyBitmap = view.status === "ready" ? view.bitmap : null;
   const dirty =
     view.status === "ready" && JSON.stringify(settings) !== savedJson;
+  // While comparing, the photo (and the scopes) show the original
+  const shown = comparing ? DEFAULT_SETTINGS : settings;
 
   // 1. Load the photo row, its saved edit, and the preview image
   useEffect(() => {
@@ -102,28 +125,69 @@ export function DevelopPage() {
     };
   }, [readyBitmap]);
 
-  // 4. Redraw whenever a slider moves (once per frame at most)
+  // 4. Redraw whenever a slider moves or compare is held (once per frame at most)
   useEffect(() => {
     const frame = requestAnimationFrame(() =>
-      rendererRef.current?.render(settings),
+      rendererRef.current?.render(shown),
     );
     return () => cancelAnimationFrame(frame);
-  }, [settings]);
+  }, [shown]);
 
-  // 5. Save pending changes when leaving the page
+  // 5. Refresh the histogram and waveform shortly after things settle
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      const renderer = rendererRef.current;
+      if (renderer) setScope(renderer.readScopes(shown));
+    }, 100);
+    return () => window.clearTimeout(timeout);
+  }, [shown, readyBitmap]);
+
+  // 6. Save pending changes when leaving the page
   useEffect(() => {
     return () => {
       void flush();
     };
   }, [flush]);
 
-  // 6. Warn before closing the tab with unsaved changes
+  // 7. Warn before closing the tab with unsaved changes
   useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
+
+  // 8. Keyboard shortcuts: Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y, and hold \ to compare
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target)) return;
+      const modifier = event.ctrlKey || event.metaKey;
+      const key = event.key.toLowerCase();
+      if (modifier && key === "z") {
+        event.preventDefault();
+        if (event.shiftKey) redo();
+        else undo();
+      } else if (modifier && key === "y") {
+        event.preventDefault();
+        redo();
+      } else if (event.key === "\\" && !event.repeat) {
+        setComparing(true);
+      }
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key === "\\") setComparing(false);
+    };
+    const onBlur = () => setComparing(false);
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [undo, redo]);
 
   let saveLabel = "All changes saved";
   if (saveFailed) saveLabel = "Couldn't save changes";
@@ -147,18 +211,62 @@ export function DevelopPage() {
               ? view.photo.title || "Untitled photo"
               : ""}
           </span>
+
           {view.status === "ready" && (
-            <span
-              className={saveFailed ? "save-state failed" : "save-state"}
-              role="status"
-            >
-              {saveLabel}
-              {saveFailed && (
-                <button className="ghost" onClick={() => void flush()}>
-                  Retry
+            <>
+              <div className="stage-tools">
+                <button
+                  className="ghost"
+                  disabled={!canUndo}
+                  onClick={undo}
+                  title="Undo (Ctrl+Z)"
+                >
+                  Undo
                 </button>
-              )}
-            </span>
+                <button
+                  className="ghost"
+                  disabled={!canRedo}
+                  onClick={redo}
+                  title="Redo (Ctrl+Shift+Z)"
+                >
+                  Redo
+                </button>
+                <button
+                  type="button"
+                  className="ghost compare-btn"
+                  aria-pressed={comparing}
+                  title="Hold to see the original (shortcut: \)"
+                  onPointerDown={() => setComparing(true)}
+                  onPointerUp={() => setComparing(false)}
+                  onPointerLeave={() => setComparing(false)}
+                  onPointerCancel={() => setComparing(false)}
+                  onKeyDown={(event) => {
+                    if (event.key === " " || event.key === "Enter") {
+                      event.preventDefault();
+                      setComparing(true);
+                    }
+                  }}
+                  onKeyUp={(event) => {
+                    if (event.key === " " || event.key === "Enter")
+                      setComparing(false);
+                  }}
+                  onBlur={() => setComparing(false)}
+                >
+                  Hold to compare
+                </button>
+              </div>
+              <span
+                className={saveFailed ? "save-state failed" : "save-state"}
+                role="status"
+              >
+                {saveLabel}
+                {saveFailed && (
+                  <button className="ghost" onClick={() => void flush()}>
+                    Retry
+                  </button>
+                )}
+              </span>
+            </>
           )}
         </div>
 
@@ -196,12 +304,14 @@ export function DevelopPage() {
               aria-label={`Preview of ${view.photo.title || "your photo"}`}
             />
           )}
+          {comparing && <span className="compare-badge">Original</span>}
         </div>
       </section>
 
       <aside className="adjust-panel" aria-label="Adjustments">
         {view.status === "ready" && (
           <>
+            <Scopes data={scope} />
             <div className="panel-head">
               <h2>Basic</h2>
               <button
@@ -228,6 +338,16 @@ export function DevelopPage() {
                 </div>
               </details>
             ))}
+            <details className="group" open>
+              <summary>Versions</summary>
+              <div className="group-body">
+                <VersionsPanel
+                  photoId={view.photo.id}
+                  current={settings}
+                  onApply={applySettings}
+                />
+              </div>
+            </details>
           </>
         )}
       </aside>
