@@ -51,7 +51,7 @@ export function AuthPage() {
 
   return (
     <div className="auth-page">
-      <MountainArt className="auth-banner" />
+      <MountainArt variant="banner" className="auth-banner" />
       <section className="auth-art" aria-hidden="true">
         <h2>Every photo in its best light.</h2>
         <p>

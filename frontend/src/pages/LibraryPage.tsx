@@ -183,7 +183,7 @@ export function LibraryPage() {
 
         {status === "ready" && photos.length === 0 && (
           <div className="empty">
-            <MountainArt className="empty-art" />
+            <MountainArt variant="wide" className="empty-art" />
             <h2>Your library is empty</h2>
             <p>
               Drag photos here or import them. JPEG, PNG, and WebP up to 10 MB

@@ -4,31 +4,31 @@
     "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
     "SF Pro Text", Roboto, "Helvetica Neue", Arial, sans-serif;
 
-  /* surfaces: deep dusk, close to neutral so photos still read true */
-  --bg: #0e0c14;
-  --panel: #171421;
-  --panel-2: #1f1b2c;
-  --panel-3: #292439;
-  --line: #2b2638;
-  --line-strong: #433c58;
-  --text: #f0ebf7;
-  --text-dim: #b5acc6;
-  --text-faint: #9d94b0;
+  /* surfaces: a deep evergreen night, close to neutral so photos still read true */
+  --bg: #0a1211;
+  --panel: #111c1a;
+  --panel-2: #182623;
+  --panel-3: #21322f;
+  --line: #22332f;
+  --line-strong: #385048;
+  --text: #eaf3ef;
+  --text-dim: #a9bdb6;
+  --text-faint: #8fa59d;
 
-  /* the one action colour: sunrise gold */
-  --accent: #f0b44c;
-  --accent-hover: #f7c76a;
-  --accent-ink: #1b1203;
-  --accent-soft: rgba(240, 180, 76, 0.14);
+  /* the one action colour: Golden Gate orange */
+  --accent: #f26a3c;
+  --accent-hover: #ff8456;
+  --accent-ink: #1c0a03;
+  --accent-soft: rgba(242, 106, 60, 0.15);
 
-  /* the sunrise palette, used only in small touches */
-  --c-gold: #f0b44c;
-  --c-dawn: #ff8f5a;
-  --c-dusk: #a58bff;
-  --c-sky: #6fb6ff;
+  /* the Pacific Northwest palette, used only in small touches */
+  --c-orange: #f26a3c;
+  --c-fern: #4fd08a;
+  --c-glacier: #8fd3ff;
+  --c-lichen: #cfd96a;
 
   --danger: #ff7b7b;
-  --success: #7be0a0;
+  --success: #6fdc9c;
 
   --radius: 6px;
   --radius-lg: 10px;
@@ -1075,7 +1075,7 @@ input[type="range"].adjust-range::-moz-range-track {
   margin-top: 0.75rem;
 }
 
-/* ---------- sunrise theme touches ---------- */
+/* ---------- Pacific Northwest theme touches ---------- */
 .brand {
   gap: 0.6rem;
   font-weight: 600;
@@ -1086,7 +1086,7 @@ input[type="range"].adjust-range::-moz-range-track {
   flex: none;
 }
 
-/* a thin horizon glow under the top bar */
+/* a thin line under the top bar: glacier, fern, then bridge orange */
 .topbar::after {
   content: "";
   position: absolute;
@@ -1098,9 +1098,9 @@ input[type="range"].adjust-range::-moz-range-track {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    var(--c-dusk) 22%,
-    var(--c-dawn) 58%,
-    var(--c-gold) 82%,
+    var(--c-glacier) 22%,
+    var(--c-fern) 55%,
+    var(--c-orange) 82%,
     transparent 100%
   );
   opacity: 0.75;
@@ -1126,12 +1126,13 @@ input[type="range"].adjust-range::-moz-range-track {
 }
 .auth-art p {
   font-size: 1.05rem;
-  text-shadow: 0 1px 14px rgba(14, 12, 20, 0.85);
+  text-shadow: 0 1px 14px rgba(10, 18, 17, 0.85);
 }
 .auth-banner {
   display: block;
   width: 100%;
-  height: 150px;
+  height: auto;
+  aspect-ratio: 800 / 310;
 }
 @media (min-width: 900px) {
   .auth-banner {
@@ -1174,14 +1175,14 @@ input[type="range"].adjust-range::-moz-range-track {
   margin-left: auto;
 }
 .group[data-group="light"] {
-  --dot: var(--c-gold);
+  --dot: var(--c-glacier);
 }
 .group[data-group="color"] {
-  --dot: var(--c-dawn);
+  --dot: var(--c-orange);
 }
 .group[data-group="effects"] {
-  --dot: var(--c-dusk);
+  --dot: var(--c-fern);
 }
 .group[data-group="versions"] {
-  --dot: var(--c-sky);
+  --dot: var(--c-lichen);
 }
