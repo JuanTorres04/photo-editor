@@ -8,9 +8,9 @@ interface AdjustSliderProps {
   onReset: (key: SettingKey) => void;
 }
 
-function formatValue(value: number, decimals: number): string {
+function formatValue(value: number, decimals: number, signed: boolean): string {
   const text = value.toFixed(decimals);
-  return value > 0 ? `+${text}` : text;
+  return signed && value > 0 ? `+${text}` : text;
 }
 
 export function AdjustSlider({
@@ -21,7 +21,7 @@ export function AdjustSlider({
 }: AdjustSliderProps) {
   const id = `adjust-${spec.key}`;
   const changed = value !== 0;
-  const text = formatValue(value, spec.decimals);
+  const text = formatValue(value, spec.decimals, spec.min < 0);
 
   // The coloured part of the track runs from zero to the handle, so you can see the direction at a glance
   const range = spec.max - spec.min;

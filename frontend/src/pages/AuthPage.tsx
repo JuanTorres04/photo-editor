@@ -1,7 +1,8 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Navigate } from "react-router-dom";
-import { HistogramArt } from "../components/HistogramArt";
+import { Logo } from "../components/Logo";
+import { MountainArt } from "../components/MountainArt";
 import { APP_NAME } from "../lib/config";
 import { getErrorMessage } from "../lib/errors";
 import { useAuthStore } from "../store/authStore";
@@ -50,20 +51,21 @@ export function AuthPage() {
 
   return (
     <div className="auth-page">
+      <MountainArt className="auth-banner" />
       <section className="auth-art" aria-hidden="true">
         <h2>Every photo in its best light.</h2>
         <p>
           Edit in your browser with the tools pros use. Your originals are never
           changed.
         </p>
-        <HistogramArt />
+        <MountainArt className="mountain-art" />
       </section>
 
       <div className="auth-side">
         <form className="auth-card" onSubmit={(e) => void handleSubmit(e)}>
           <div className="auth-brand">
             <div className="brand">
-              <span className="logo" aria-hidden="true" />
+              <Logo />
               {APP_NAME}
             </div>
             <h1>{isLogin ? "Sign in" : "Create your account"}</h1>

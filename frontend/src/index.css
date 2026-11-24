@@ -4,21 +4,31 @@
     "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
     "SF Pro Text", Roboto, "Helvetica Neue", Arial, sans-serif;
 
-  --bg: #1a1a1a;
-  --panel: #252525;
-  --panel-2: #2d2d2d;
-  --panel-3: #383838;
-  --line: #343434;
-  --line-strong: #474747;
-  --text: #ececec;
-  --text-dim: #adadad;
-  --text-faint: #979797;
-  --accent: #ff8da1;
-  --accent-hover: #ffa3b3;
-  --accent-ink: #20090d;
-  --accent-soft: rgba(255, 141, 161, 0.14);
-  --danger: #ff7a7a;
-  --success: #6fd49a;
+  /* surfaces: deep dusk, close to neutral so photos still read true */
+  --bg: #0e0c14;
+  --panel: #171421;
+  --panel-2: #1f1b2c;
+  --panel-3: #292439;
+  --line: #2b2638;
+  --line-strong: #433c58;
+  --text: #f0ebf7;
+  --text-dim: #b5acc6;
+  --text-faint: #9d94b0;
+
+  /* the one action colour: sunrise gold */
+  --accent: #f0b44c;
+  --accent-hover: #f7c76a;
+  --accent-ink: #1b1203;
+  --accent-soft: rgba(240, 180, 76, 0.14);
+
+  /* the sunrise palette, used only in small touches */
+  --c-gold: #f0b44c;
+  --c-dawn: #ff8f5a;
+  --c-dusk: #a58bff;
+  --c-sky: #6fb6ff;
+
+  --danger: #ff7b7b;
+  --success: #7be0a0;
 
   --radius: 6px;
   --radius-lg: 10px;
@@ -1063,4 +1073,115 @@ input[type="range"].adjust-range::-moz-range-track {
 .export-dialog .muted,
 .export-dialog .form-error {
   margin-top: 0.75rem;
+}
+
+/* ---------- sunrise theme touches ---------- */
+.brand {
+  gap: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.logo-mark {
+  display: block;
+  flex: none;
+}
+
+/* a thin horizon glow under the top bar */
+.topbar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--c-dusk) 22%,
+    var(--c-dawn) 58%,
+    var(--c-gold) 82%,
+    transparent 100%
+  );
+  opacity: 0.75;
+}
+
+/* sign-in: the scene fills the whole left panel, with the headline over it */
+.auth-art {
+  background: var(--bg);
+}
+.mountain-art {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+}
+.auth-art h2 {
+  max-width: 12ch;
+  font-size: clamp(2.3rem, 3.6vw, 3.4rem);
+  font-weight: 300;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+.auth-art p {
+  font-size: 1.05rem;
+  text-shadow: 0 1px 14px rgba(14, 12, 20, 0.85);
+}
+.auth-banner {
+  display: block;
+  width: 100%;
+  height: 150px;
+}
+@media (min-width: 900px) {
+  .auth-banner {
+    display: none;
+  }
+}
+@media (max-width: 899px) {
+  .auth-page {
+    grid-template-rows: auto 1fr;
+  }
+}
+
+/* empty library */
+.empty {
+  max-width: 520px;
+}
+.empty-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  margin-bottom: 0.75rem;
+  border-radius: 8px;
+}
+
+/* editing groups get a coloured dot */
+.group summary {
+  justify-content: flex-start;
+  gap: 0.6rem;
+}
+.group summary::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dot, var(--line-strong));
+}
+.group summary::after {
+  margin-left: auto;
+}
+.group[data-group="light"] {
+  --dot: var(--c-gold);
+}
+.group[data-group="color"] {
+  --dot: var(--c-dawn);
+}
+.group[data-group="effects"] {
+  --dot: var(--c-dusk);
+}
+.group[data-group="versions"] {
+  --dot: var(--c-sky);
 }

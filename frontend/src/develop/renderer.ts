@@ -30,6 +30,9 @@ uniform float u_temperature;
 uniform float u_tint;
 uniform float u_vibrance;
 uniform float u_saturation;
+uniform float u_sharpen;
+uniform float u_vignette;
+uniform float u_grain;
 
 const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
 
@@ -63,8 +66,15 @@ vec3 tone(vec3 p) {
   return p;
 }
 
+float hash(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
 void main() {
-  vec3 lin = srgbToLinear(texture(u_image, v_uv).rgb);
+  vec3 src = texture(u_image, v_uv).rgb;
+  vec3 lin = srgbToLinear(src);
 
   // White balance as per-channel gains, normalised so brightness stays about the same
   vec3 gain = vec3(1.0 + 0.30 * u_temperature, 1.0 - 0.16 * u_tint, 1.0 - 0.30 * u_temperature);
@@ -82,6 +92,40 @@ void main() {
   float amount = max(1.0 + u_saturation + u_vibrance * (1.0 - chroma), 0.0);
   p = mix(vec3(luma), p, amount);
 
+  vec2 size = vec2(textureSize(u_image, 0));
+
+  // Sharpening: add back the difference between each pixel and the average of its neighbours
+  if (u_sharpen > 0.0) {
+    vec2 texel = 1.0 / size;
+    vec3 blur = 0.25 * (
+      texture(u_image, v_uv + vec2(texel.x, 0.0)).rgb +
+      texture(u_image, v_uv - vec2(texel.x, 0.0)).rgb +
+      texture(u_image, v_uv + vec2(0.0, texel.y)).rgb +
+      texture(u_image, v_uv - vec2(0.0, texel.y)).rgb
+    );
+    p += (src - blur) * u_sharpen * 2.2;
+  }
+
+  // Vignette: darken (negative) or lighten (positive) towards the corners, shaped by the photo's aspect ratio
+  if (u_vignette != 0.0) {
+    vec2 aspect = vec2(size.x / size.y, 1.0);
+    float r = length((v_uv - 0.5) * aspect) / length(aspect * 0.5);
+    float edge = smoothstep(0.3, 1.05, r);
+    if (u_vignette < 0.0) {
+      p *= 1.0 + u_vignette * 0.85 * edge;
+    } else {
+      p = mix(p, vec3(1.0), u_vignette * 0.6 * edge);
+    }
+  }
+
+  // Grain: the same texture whatever the export size, strongest in the midtones
+  if (u_grain > 0.0) {
+    float scale = min(1.0, 1400.0 / max(size.x, size.y));
+    float noise = hash(floor(v_uv * size * scale)) - 0.5;
+    float midtones = 1.0 - abs(dot(p, LUMA) * 2.0 - 1.0) * 0.6;
+    p += noise * u_grain * 0.22 * midtones;
+  }
+
   outColor = vec4(clamp(p, 0.0, 1.0), 1.0);
 }`;
 
@@ -97,6 +141,9 @@ const UNIFORM_NAMES = [
   "u_tint",
   "u_vibrance",
   "u_saturation",
+  "u_sharpen",
+  "u_vignette",
+  "u_grain",
 ] as const;
 
 type UniformName = (typeof UNIFORM_NAMES)[number];
@@ -243,6 +290,9 @@ export class DevelopRenderer {
     gl.uniform1f(uniforms.u_tint, settings.tint / 100);
     gl.uniform1f(uniforms.u_vibrance, settings.vibrance / 100);
     gl.uniform1f(uniforms.u_saturation, settings.saturation / 100);
+    gl.uniform1f(uniforms.u_sharpen, settings.sharpen / 100);
+    gl.uniform1f(uniforms.u_vignette, settings.vignette / 100);
+    gl.uniform1f(uniforms.u_grain, settings.grain / 100);
 
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }

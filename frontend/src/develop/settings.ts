@@ -10,6 +10,9 @@ export type EditSettings = {
   tint: number;
   vibrance: number;
   saturation: number;
+  sharpen: number;
+  vignette: number;
+  grain: number;
 };
 
 export type SettingKey = keyof EditSettings;
@@ -25,6 +28,9 @@ export const DEFAULT_SETTINGS: EditSettings = {
   tint: 0,
   vibrance: 0,
   saturation: 0,
+  sharpen: 0,
+  vignette: 0,
+  grain: 0,
 };
 
 export interface SliderSpec {
@@ -46,6 +52,15 @@ const percent = (key: SettingKey, label: string): SliderSpec => ({
   key,
   label,
   min: -100,
+  max: 100,
+  step: 1,
+  decimals: 0,
+});
+
+const amount = (key: SettingKey, label: string): SliderSpec => ({
+  key,
+  label,
+  min: 0,
   max: 100,
   step: 1,
   decimals: 0,
@@ -79,6 +94,15 @@ export const SLIDER_GROUPS: SliderGroup[] = [
       percent("tint", "Tint"),
       percent("vibrance", "Vibrance"),
       percent("saturation", "Saturation"),
+    ],
+  },
+  {
+    id: "effects",
+    title: "Effects",
+    sliders: [
+      amount("sharpen", "Sharpening"),
+      percent("vignette", "Vignette"),
+      amount("grain", "Grain"),
     ],
   },
 ];

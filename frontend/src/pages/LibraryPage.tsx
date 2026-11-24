@@ -14,6 +14,7 @@ import { useAuthStore } from "../store/authStore";
 import { useLibraryStore } from "../store/libraryStore";
 import { useToastStore } from "../store/toastStore";
 import { useNavigate } from "react-router-dom";
+import { MountainArt } from "../components/MountainArt";
 
 const URL_REFRESH_MS = 50 * 60 * 1000;
 
@@ -142,7 +143,10 @@ export function LibraryPage() {
             onChange={(e) => setTileSize(Number(e.target.value))}
           />
         </div>
-        <button disabled={!selected} onClick={() => selected && navigate(`/develop/${selected.id}`)}>
+        <button
+          disabled={!selected}
+          onClick={() => selected && navigate(`/develop/${selected.id}`)}
+        >
           Develop
         </button>
         <button disabled={!selected} onClick={() => setConfirmOpen(true)}>
@@ -179,6 +183,7 @@ export function LibraryPage() {
 
         {status === "ready" && photos.length === 0 && (
           <div className="empty">
+            <MountainArt className="empty-art" />
             <h2>Your library is empty</h2>
             <p>
               Drag photos here or import them. JPEG, PNG, and WebP up to 10 MB

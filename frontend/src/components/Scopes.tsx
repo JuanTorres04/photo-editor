@@ -63,9 +63,9 @@ function drawWaveform(
         if (count === 0) continue;
         const intensity = Math.min(1, Math.sqrt(count / data.waveMax) * 1.4);
         const offset = ((255 - level) * width + x) * 4;
-        pixels[offset] = 20 + (255 - 20) * intensity;
-        pixels[offset + 1] = 20 + (141 - 20) * intensity;
-        pixels[offset + 2] = 20 + (161 - 20) * intensity;
+        pixels[offset] = 20 + (240 - 20) * intensity;
+        pixels[offset + 1] = 20 + (180 - 20) * intensity;
+        pixels[offset + 2] = 20 + (76 - 20) * intensity;
       }
     }
   }

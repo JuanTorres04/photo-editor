@@ -3,6 +3,7 @@ import { APP_NAME } from "../lib/config";
 import { getErrorMessage } from "../lib/errors";
 import { useAuthStore } from "../store/authStore";
 import { useToastStore } from "../store/toastStore";
+import { Logo } from "./Logo";
 
 export function AppShell() {
   const user = useAuthStore((state) => state.user);
@@ -21,7 +22,7 @@ export function AppShell() {
       </a>
       <header className="topbar">
         <div className="brand">
-          <span className="logo" aria-hidden="true" />
+          <Logo />
           {APP_NAME}
         </div>
         <nav className="modules" aria-label="Modules">

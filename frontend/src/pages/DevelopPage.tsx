@@ -328,7 +328,7 @@ export function DevelopPage() {
               </button>
             </div>
             {SLIDER_GROUPS.map((group) => (
-              <details key={group.id} className="group" open>
+              <details key={group.id} className="group" data-group={group.id} open>
                 <summary>{group.title}</summary>
                 <div className="group-body">
                   {group.sliders.map((spec) => (
@@ -343,7 +343,7 @@ export function DevelopPage() {
                 </div>
               </details>
             ))}
-            <details className="group" open>
+            <details className="group" data-group="versions" open>
               <summary>Versions</summary>
               <div className="group-body">
                 <VersionsPanel
