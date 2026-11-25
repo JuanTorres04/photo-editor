@@ -5,18 +5,27 @@ import type {
   DragEvent,
   KeyboardEvent,
 } from "react";
+import { useNavigate } from "react-router-dom";
+import { AmbientScene } from "../components/AmbientScene";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { ImportPanel } from "../components/ImportPanel";
 import { PhotoTile } from "../components/PhotoTile";
+import { WaterfallScene } from "../components/WaterfallScene";
 import { getErrorMessage } from "../lib/errors";
 import { MAX_PHOTOS } from "../lib/photos";
 import { useAuthStore } from "../store/authStore";
 import { useLibraryStore } from "../store/libraryStore";
 import { useToastStore } from "../store/toastStore";
-import { useNavigate } from "react-router-dom";
-import { WaterfallScene } from "../components/WaterfallScene";
 
 const URL_REFRESH_MS = 50 * 60 * 1000;
+
+function greeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 5) return "Working late";
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
 
 export function LibraryPage() {
   const user = useAuthStore((state) => state.user);
@@ -104,6 +113,14 @@ export function LibraryPage() {
   const gridStyle = { "--tile": `${tileSize}px` } as CSSProperties;
   const showSkeleton = status === "loading" && photos.length === 0;
 
+  let subtitle = "";
+  if (status === "ready") {
+    subtitle =
+      photos.length === 0
+        ? "Import your first photo to begin."
+        : `${photos.length} ${photos.length === 1 ? "photo" : "photos"} ready to edit`;
+  }
+
   return (
     <div
       className="lib"
@@ -112,6 +129,8 @@ export function LibraryPage() {
       onDrop={handleDrop}
       onKeyDown={handleKeyDown}
     >
+      <AmbientScene className="ambient" />
+
       <input
         ref={fileInput}
         type="file"
@@ -121,15 +140,34 @@ export function LibraryPage() {
         onChange={handlePick}
       />
 
-      <div className="lib-toolbar">
-        <div className="lib-title">
+      <header className="lib-hero">
+        <div>
+          <p className="lib-greeting">{greeting()}</p>
           <h1>Library</h1>
-          {status === "ready" && (
-            <span className="lib-count">
-              {photos.length} of {MAX_PHOTOS} photos
-            </span>
-          )}
+          <p className="lib-sub">{subtitle}</p>
         </div>
+        {status === "ready" && (
+          <div className="quota">
+            <span className="quota-text">
+              <strong>{photos.length}</strong> of {MAX_PHOTOS} photos
+            </span>
+            <div
+              className="quota-bar"
+              role="progressbar"
+              aria-label="Photos used"
+              aria-valuemin={0}
+              aria-valuemax={MAX_PHOTOS}
+              aria-valuenow={photos.length}
+            >
+              <span
+                style={{ width: `${(photos.length / MAX_PHOTOS) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </header>
+
+      <div className="lib-toolbar">
         <span className="lib-spacer" />
         <div className="tile-size">
           <label htmlFor="tile-size">Size</label>

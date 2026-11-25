@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { DEFAULT_SETTINGS } from "../develop/settings";
 import type { EditSettings, SettingKey } from "../develop/settings";
+import type { CurveChannel, Point } from "../develop/curves";
 import { saveEdit } from "../lib/edits";
 import { useToastStore } from "./toastStore";
 
@@ -9,7 +10,7 @@ const GROUP_WINDOW_MS = 600;
 const MAX_HISTORY = 100;
 
 let timer: number | undefined;
-let lastKey: SettingKey | null = null;
+let lastKey: string | null = null;
 let lastChange = 0;
 
 interface DevelopState {
@@ -22,6 +23,11 @@ interface DevelopState {
   future: EditSettings[];
   open: (photoId: string, settings: EditSettings) => void;
   setValue: (key: SettingKey, value: number) => void;
+  setCurve: (
+    channel: CurveChannel,
+    points: Point[],
+    discrete?: boolean,
+  ) => void;
   resetKey: (key: SettingKey) => void;
   resetAll: () => void;
   applySettings: (settings: EditSettings) => void;
@@ -72,6 +78,23 @@ export const useDevelopStore = create<DevelopState>((set, get) => {
       lastKey = key;
       lastChange = now;
       set((state) => ({ settings: { ...state.settings, [key]: value } }));
+      schedule();
+    },
+
+    setCurve: (channel, points, discrete = false) => {
+      // Dragging a point is one undo step; presets and removing a point are steps of their own
+      const key = `curve:${channel}`;
+      const now = Date.now();
+      if (discrete || key !== lastKey || now - lastChange > GROUP_WINDOW_MS)
+        remember();
+      lastKey = discrete ? null : key;
+      lastChange = now;
+      set((state) => ({
+        settings: {
+          ...state.settings,
+          curves: { ...state.settings.curves, [channel]: points },
+        },
+      }));
       schedule();
     },
 

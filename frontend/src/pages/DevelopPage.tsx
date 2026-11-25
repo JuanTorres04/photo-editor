@@ -16,6 +16,7 @@ import { downloadPreview, getPhoto } from "../lib/photos";
 import type { Photo } from "../lib/photos";
 import { useDevelopStore } from "../store/developStore";
 import { ExportDialog } from "../components/ExportDialog";
+import { CurveEditor } from "../components/CurveEditor";
 
 type LoadState =
   | { status: "loading" }
@@ -57,6 +58,7 @@ export function DevelopPage() {
   const undo = useDevelopStore((state) => state.undo);
   const redo = useDevelopStore((state) => state.redo);
   const flush = useDevelopStore((state) => state.flush);
+  const setCurve = useDevelopStore((state) => state.setCurve);
 
   const invalidId = !photoId || !UUID.test(photoId);
   const view: LoadState = invalidId ? { status: "missing" } : load;
@@ -328,7 +330,12 @@ export function DevelopPage() {
               </button>
             </div>
             {SLIDER_GROUPS.map((group) => (
-              <details key={group.id} className="group" data-group={group.id} open>
+              <details
+                key={group.id}
+                className="group"
+                data-group={group.id}
+                open
+              >
                 <summary>{group.title}</summary>
                 <div className="group-body">
                   {group.sliders.map((spec) => (
@@ -343,6 +350,16 @@ export function DevelopPage() {
                 </div>
               </details>
             ))}
+            <details className="group" data-group="curves" open>
+              <summary>Tone curve</summary>
+              <div className="group-body">
+                <CurveEditor
+                  curves={settings.curves}
+                  scope={scope}
+                  onChange={setCurve}
+                />
+              </div>
+            </details>
             <details className="group" data-group="versions" open>
               <summary>Versions</summary>
               <div className="group-body">
@@ -357,7 +374,11 @@ export function DevelopPage() {
         )}
       </aside>
       {view.status === "ready" && (
-        <ExportDialog photo={view.photo} open={exportOpen} onClose={() => setExportOpen(false)} />
+        <ExportDialog
+          photo={view.photo}
+          open={exportOpen}
+          onClose={() => setExportOpen(false)}
+        />
       )}
     </div>
   );

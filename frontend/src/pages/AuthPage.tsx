@@ -51,20 +51,21 @@ export function AuthPage() {
 
   return (
     <div className="auth-page">
-      <WaterfallScene variant="banner" className="auth-banner" />
-      <section className="auth-art" aria-hidden="true">
-        <h2>Every photo at it's best.</h2>
-        <p>
-          Edit in your browser for free with the software pros use.
-        </p>
-        <WaterfallScene className="mountain-art" />
-      </section>
+      <WaterfallScene variant="full" className="auth-scene" />
+      <div className="auth-shade" aria-hidden="true" />
 
-      <div className="auth-side">
+      <main className="auth-layout">
+        <div className="auth-intro">
+          <p className="auth-tagline">Every photo at its best.</p>
+          <p className="auth-note">
+            Edit in your browser for free with the software pros use.
+          </p>
+        </div>
+
         <form className="auth-card" onSubmit={(e) => void handleSubmit(e)}>
           <div className="auth-brand">
             <div className="brand">
-              <Logo />
+              <Logo size={28} />
               {APP_NAME}
             </div>
             <h1>{isLogin ? "Sign in" : "Create your account"}</h1>
@@ -137,7 +138,7 @@ export function AuthPage() {
               : "Already have an account? Sign in"}
           </button>
         </form>
-      </div>
+      </main>
     </div>
   );
 }

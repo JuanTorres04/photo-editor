@@ -1,14 +1,36 @@
-export type SceneVariant = "hero" | "wide" | "banner";
+import {
+  FOG_W,
+  H,
+  W,
+  firLine,
+  firPath,
+  fogBand,
+  get2d,
+  lerp,
+  makeCanvas,
+  makeFogTexture,
+  makeNoise,
+  makeSprite,
+  mulberry32,
+} from "./shared";
+import type { Ctx, Extents, Scene } from "./shared";
 
-export interface Scene {
-  /** Sizes the scene for a canvas of `width` x `height` CSS pixels and repaints the still layers. */
-  resize: (width: number, height: number, dpr: number) => void;
-  /** Draws one frame. `seconds` is any steadily increasing clock. */
-  draw: (seconds: number) => void;
+export type { Scene } from "./shared";
+
+/** "full" fits the whole scene to the screen's height (for page backgrounds); "wide" crops to fill a box. */
+export type SceneVariant = "full" | "wide";
+
+interface Mode {
+  fit: "height" | "cover";
+  focus: number;
+  /** The part of the scene to keep centred when the screen is narrower than the scene. */
+  centerX: number;
 }
 
-type Ctx = CanvasRenderingContext2D;
-type Rgb = readonly [number, number, number];
+const MODES: Record<SceneVariant, Mode> = {
+  full: { fit: "height", focus: 1, centerX: 540 },
+  wide: { fit: "cover", focus: 0.7, centerX: 560 },
+};
 
 interface Fall {
   x: number;
@@ -17,16 +39,6 @@ interface Fall {
   widthTop: number;
   widthBottom: number;
 }
-
-// The scene is drawn on an 800 x 900 canvas, then scaled to cover whatever space it is given.
-const W = 800;
-const H = 900;
-// Which part stays in view when the space is shorter than 800:900 (1 = the bottom, 0 = the top).
-const FOCUS: Record<SceneVariant, number> = {
-  hero: 1,
-  wide: 0.7,
-  banner: 0.62,
-};
 
 const UPPER_FALL: Fall = {
   x: 578,
@@ -44,185 +56,7 @@ const LOWER_FALL: Fall = {
 };
 const POOL_Y = 716;
 const IMPACT_X = 562;
-const FOG_W = 1200;
 const LEDGES = [330, 390, 452, 520, 590, 660];
-
-/* ---------- small helpers ---------- */
-
-const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
-const rgba = (color: Rgb, alpha: number): string =>
-  `rgba(${color[0]},${color[1]},${color[2]},${alpha})`;
-
-/** A tiny seeded random generator, so the scene looks the same every time it is drawn. */
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/** Smooth, natural-looking noise between 0 and 1. */
-function makeNoise(seed: number): (x: number) => number {
-  const rand = mulberry32(seed);
-  const table = Array.from({ length: 256 }, () => rand());
-  const at = (i: number): number => table[((i % 256) + 256) % 256];
-  const smooth = (t: number): number => t * t * (3 - 2 * t);
-  const value = (x: number): number => {
-    const i = Math.floor(x);
-    return lerp(at(i), at(i + 1), smooth(x - i));
-  };
-  return (x) =>
-    value(x) * 0.6 + value(x * 2.1 + 11) * 0.28 + value(x * 4.3 + 23) * 0.12;
-}
-
-function makeCanvas(width: number, height: number): HTMLCanvasElement {
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(width));
-  canvas.height = Math.max(1, Math.round(height));
-  return canvas;
-}
-
-function get2d(canvas: HTMLCanvasElement): Ctx {
-  const context = canvas.getContext("2d");
-  if (!context)
-    throw new Error("This browser can't draw the background scene.");
-  return context;
-}
-
-/** A soft round glow, used for mist and fireflies. */
-function makeSprite(size: number, color: Rgb, core: number): HTMLCanvasElement {
-  const canvas = makeCanvas(size, size);
-  const g = get2d(canvas);
-  const gradient = g.createRadialGradient(
-    size / 2,
-    size / 2,
-    0,
-    size / 2,
-    size / 2,
-    size / 2,
-  );
-  gradient.addColorStop(0, rgba(color, core));
-  gradient.addColorStop(0.4, rgba(color, core * 0.4));
-  gradient.addColorStop(1, rgba(color, 0));
-  g.fillStyle = gradient;
-  g.fillRect(0, 0, size, size);
-  return canvas;
-}
-
-/** A strip of soft fog wisps that wraps seamlessly, scrolled sideways to make fog drift. */
-function makeFogTexture(): HTMLCanvasElement {
-  const rand = mulberry32(9);
-  const canvas = makeCanvas(FOG_W, 240);
-  const g = get2d(canvas);
-  for (let i = 0; i < 22; i++) {
-    const cx = rand() * FOG_W;
-    const cy = 240 * (0.3 + rand() * 0.4);
-    const rx = 120 + rand() * 220;
-    const ry = 24 + rand() * 46;
-    const alpha = 0.3 + rand() * 0.3;
-    // each wisp is also drawn one tile to the left and right so the strip wraps without a seam
-    for (const shift of [-FOG_W, 0, FOG_W]) {
-      g.save();
-      g.translate(cx + shift, cy);
-      g.scale(rx, ry);
-      const gradient = g.createRadialGradient(0, 0, 0, 0, 0, 1);
-      gradient.addColorStop(0, rgba([190, 225, 220], alpha));
-      gradient.addColorStop(1, rgba([190, 225, 220], 0));
-      g.fillStyle = gradient;
-      g.beginPath();
-      g.arc(0, 0, 1, 0, Math.PI * 2);
-      g.fill();
-      g.restore();
-    }
-  }
-  return canvas;
-}
-
-/* ---------- fir trees ---------- */
-
-/** Adds one fir tree to the current path: a jagged silhouette with drooping branch tiers. */
-function firPath(
-  ctx: Ctx,
-  x: number,
-  baseY: number,
-  height: number,
-  width: number,
-  rand: () => number,
-): void {
-  const tiers = Math.max(3, Math.round(height / 13));
-  const step = height / tiers;
-  const top = baseY - height;
-  const right: Array<[number, number]> = [];
-  const left: Array<[number, number]> = [];
-  for (let i = 1; i <= tiers; i++) {
-    const y = top + i * step;
-    const reach = (width / 2) * (i / tiers) * (0.85 + rand() * 0.3);
-    right.push([x + reach * 0.4, y - step * 0.45], [x + reach, y]);
-    left.push([x - reach * 0.4, y - step * 0.45], [x - reach, y]);
-  }
-  ctx.moveTo(x, top);
-  for (const [px, py] of right) ctx.lineTo(px, py);
-  for (let i = left.length - 1; i >= 0; i--) ctx.lineTo(left[i][0], left[i][1]);
-  ctx.closePath();
-}
-
-interface FirLineOptions {
-  seed: number;
-  ground: (x: number) => number;
-  minHeight: number;
-  maxHeight: number;
-  spacing: number;
-  fill: string;
-  from?: number;
-  to?: number;
-  /** Also fill solid ground below the trees (default true). */
-  solid?: boolean;
-  skip?: (x: number) => boolean;
-}
-
-/** A whole row of fir trees along a ridge, drawn as one shape. */
-function firLine(ctx: Ctx, o: FirLineOptions): void {
-  const from = o.from ?? -20;
-  const to = o.to ?? W + 20;
-  ctx.fillStyle = o.fill;
-
-  if (o.solid !== false) {
-    ctx.beginPath();
-    ctx.moveTo(from, H + 20);
-    for (let x = from; x <= to; x += 8) ctx.lineTo(x, o.ground(x) + 2);
-    ctx.lineTo(to, H + 20);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  const rand = mulberry32(o.seed);
-  ctx.beginPath();
-  for (let x = from; x <= to; x += o.spacing * (0.7 + rand() * 0.6)) {
-    if (o.skip?.(x)) continue;
-    const height = lerp(o.minHeight, o.maxHeight, rand());
-    firPath(ctx, x, o.ground(x), height, height * 0.4, rand);
-  }
-  ctx.fill();
-}
-
-function fogBand(
-  ctx: Ctx,
-  y0: number,
-  y1: number,
-  color: Rgb,
-  alpha: number,
-): void {
-  const gradient = ctx.createLinearGradient(0, y0, 0, y1);
-  gradient.addColorStop(0, rgba(color, 0));
-  gradient.addColorStop(0.55, rgba(color, alpha));
-  gradient.addColorStop(1, rgba(color, 0));
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, y0, W, y1 - y0);
-}
 
 /* ---------- ferns ---------- */
 
@@ -333,7 +167,8 @@ function paintHood(ctx: Ctx): void {
   ctx.fill();
 }
 
-function paintFar(ctx: Ctx): void {
+function paintFar(ctx: Ctx, ext: Extents): void {
+  const span = ext.x1 - ext.x0;
   const sky = ctx.createLinearGradient(0, 0, 0, H);
   sky.addColorStop(0, "#050c14");
   sky.addColorStop(0.3, "#0b2230");
@@ -342,14 +177,14 @@ function paintFar(ctx: Ctx): void {
   sky.addColorStop(0.84, "#6c8f7e");
   sky.addColorStop(1, "#a9c3b0");
   ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(ext.x0, 0, span, H);
 
   // a last warm glow low in the haze
   const afterglow = ctx.createRadialGradient(640, 580, 0, 640, 580, 340);
   afterglow.addColorStop(0, "rgba(222,166,112,0.30)");
   afterglow.addColorStop(1, "rgba(222,166,112,0)");
   ctx.fillStyle = afterglow;
-  ctx.fillRect(0, 240, W, 600);
+  ctx.fillRect(ext.x0, 240, span, 600);
 
   // the moon
   const halo = ctx.createRadialGradient(190, 170, 0, 190, 170, 170);
@@ -373,30 +208,36 @@ function paintFar(ctx: Ctx): void {
   }
 
   paintHood(ctx);
-  fogBand(ctx, 470, 650, [150, 196, 190], 0.38);
+  fogBand(ctx, ext.x0, ext.x1, 470, 650, [150, 196, 190], 0.38);
 
   // three rows of distant firs, each hazier than the next
   const hills = makeNoise(3);
   firLine(ctx, {
     seed: 21,
+    from: ext.x0,
+    to: ext.x1,
     ground: (x) => 600 - hills(x / 90) * 46,
     minHeight: 28,
     maxHeight: 54,
     spacing: 6,
     fill: "#1a454c",
   });
-  fogBand(ctx, 560, 700, [140, 188, 182], 0.34);
+  fogBand(ctx, ext.x0, ext.x1, 560, 700, [140, 188, 182], 0.34);
   firLine(ctx, {
     seed: 22,
+    from: ext.x0,
+    to: ext.x1,
     ground: (x) => 660 - hills(x / 70 + 9) * 38,
     minHeight: 42,
     maxHeight: 76,
     spacing: 8,
     fill: "#123b41",
   });
-  fogBand(ctx, 640, 760, [120, 170, 165], 0.3);
+  fogBand(ctx, ext.x0, ext.x1, 640, 760, [120, 170, 165], 0.3);
   firLine(ctx, {
     seed: 23,
+    from: ext.x0,
+    to: ext.x1,
     ground: (x) => 716 - hills(x / 60 + 21) * 30,
     minHeight: 58,
     maxHeight: 96,
@@ -420,12 +261,14 @@ function cliffLeft(y: number): number {
   return 322 + (cliffEdgeNoise(y / 55) - 0.5) * 56;
 }
 
-function paintCliff(ctx: Ctx): void {
+function paintCliff(ctx: Ctx, ext: Extents): void {
   const slope = makeNoise(61);
+  const reach = (ext.x1 - 320) / 480; // how much wider than the original scene the cliff has to be
 
   // the forested hillside on the left, in two rows
   firLine(ctx, {
     seed: 71,
+    from: ext.x0,
     to: 400,
     ground: (x) => 760 - slope(x / 80) * 40,
     minHeight: 90,
@@ -435,6 +278,7 @@ function paintCliff(ctx: Ctx): void {
   });
   firLine(ctx, {
     seed: 73,
+    from: ext.x0,
     to: 440,
     ground: (x) => 820 - slope(x / 60 + 4) * 30,
     minHeight: 110,
@@ -447,9 +291,9 @@ function paintCliff(ctx: Ctx): void {
   const outline = new Path2D();
   outline.moveTo(cliffLeft(780), 780);
   for (let y = 770; y >= 270; y -= 10) outline.lineTo(cliffLeft(y), y);
-  for (let x = cliffLeft(270); x <= W + 10; x += 8)
+  for (let x = cliffLeft(270); x <= ext.x1; x += 8)
     outline.lineTo(x, cliffTop(x));
-  outline.lineTo(W + 10, 780);
+  outline.lineTo(ext.x1, 780);
   outline.closePath();
 
   const rock = ctx.createLinearGradient(0, 260, 0, 780);
@@ -464,7 +308,7 @@ function paintCliff(ctx: Ctx): void {
   const rand = mulberry32(88);
 
   // basalt columns
-  for (let x = 300; x < W + 10; x += 5 + rand() * 6) {
+  for (let x = 300; x < ext.x1; x += 5 + rand() * 6) {
     const top = cliffTop(x);
     ctx.fillStyle =
       rand() < 0.5
@@ -477,8 +321,8 @@ function paintCliff(ctx: Ctx): void {
   ctx.strokeStyle = "rgba(0,0,0,0.35)";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  for (let i = 0; i < 70; i++) {
-    const x = 320 + rand() * 480;
+  for (let i = 0; i < Math.round(70 * reach); i++) {
+    const x = 320 + rand() * (ext.x1 - 320);
     const y = 300 + rand() * 440;
     ctx.moveTo(x, y);
     ctx.lineTo(x + 12 + rand() * 38, y + (rand() - 0.5) * 4);
@@ -486,7 +330,7 @@ function paintCliff(ctx: Ctx): void {
   ctx.stroke();
 
   // moss, gathered along the ledges
-  for (let i = 0; i < 120; i++) {
+  for (let i = 0; i < Math.round(120 * reach); i++) {
     const ledge = LEDGES[Math.floor(rand() * LEDGES.length)];
     const red = Math.round(50 + rand() * 30);
     const green = Math.round(112 + rand() * 40);
@@ -494,7 +338,7 @@ function paintCliff(ctx: Ctx): void {
     ctx.fillStyle = `rgba(${red},${green},${blue},${(0.12 + rand() * 0.18).toFixed(2)})`;
     ctx.beginPath();
     ctx.ellipse(
-      320 + rand() * 480,
+      320 + rand() * (ext.x1 - 320),
       ledge + (rand() - 0.3) * 26,
       10 + rand() * 26,
       3 + rand() * 9,
@@ -516,7 +360,7 @@ function paintCliff(ctx: Ctx): void {
   ctx.strokeStyle = "rgba(170,215,215,0.14)";
   ctx.beginPath();
   ctx.moveTo(cliffLeft(270), cliffTop(cliffLeft(270)));
-  for (let x = cliffLeft(270); x <= W + 10; x += 8) ctx.lineTo(x, cliffTop(x));
+  for (let x = cliffLeft(270); x <= ext.x1; x += 8) ctx.lineTo(x, cliffTop(x));
   ctx.stroke();
 
   // the creek just before it goes over the edge
@@ -582,6 +426,7 @@ function paintCliff(ctx: Ctx): void {
   firLine(ctx, {
     seed: 91,
     from: 330,
+    to: ext.x1,
     ground: (x) => cliffTop(x) + 8,
     minHeight: 60,
     maxHeight: 120,
@@ -592,42 +437,41 @@ function paintCliff(ctx: Ctx): void {
   });
 }
 
-function paintFront(ctx: Ctx): void {
+function paintFront(ctx: Ctx, ext: Extents): void {
+  const span = ext.x1 - ext.x0;
+
   // dark firs framing both edges
   const frame = mulberry32(5);
   ctx.fillStyle = "#030a09";
   ctx.beginPath();
-  firPath(ctx, 24, 990, 1060, 210, frame);
-  firPath(ctx, 806, 970, 800, 180, frame);
+  firPath(ctx, ext.x0 + 44, 990, 1060, 210, frame);
+  firPath(ctx, ext.x1 - 14, 970, 800, 180, frame);
   ctx.fill();
 
   // ferns in the foreground
-  fernCluster(ctx, 130, 905, 13, 210, 2.3, 101);
-  fernCluster(ctx, 690, 910, 13, 200, 2.3, 102);
+  fernCluster(ctx, ext.x0 + 150, 905, 13, 210, 2.3, 101);
+  fernCluster(ctx, ext.x1 - 130, 910, 13, 200, 2.3, 102);
   fernCluster(ctx, 330, 812, 7, 110, 2.0, 103);
-  fernCluster(ctx, 770, 830, 8, 120, 2.0, 104);
+  fernCluster(ctx, ext.x1 - 50, 830, 8, 120, 2.0, 104);
   fernCluster(ctx, 520, 905, 8, 130, 2.4, 105);
 
-  // darkened edges
-  const vignette = ctx.createRadialGradient(
-    W / 2,
-    H * 0.55,
-    W * 0.25,
-    W / 2,
-    H * 0.55,
-    W * 0.95,
-  );
+  // darkened edges, stretched to the width of the view
+  ctx.save();
+  ctx.translate((ext.x0 + ext.x1) / 2, H * 0.55);
+  ctx.scale(span / W, 1);
+  const vignette = ctx.createRadialGradient(0, 0, W * 0.25, 0, 0, W * 0.95);
   vignette.addColorStop(0, "rgba(2,8,8,0)");
   vignette.addColorStop(1, "rgba(2,8,8,0.6)");
   ctx.fillStyle = vignette;
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(-W * 1.2, -H, W * 2.4, H * 2);
+  ctx.restore();
 
-  // a dark veil at the top so the headline stays readable
+  // a dark veil at the top so any text over it stays readable
   const veil = ctx.createLinearGradient(0, 0, 0, 340);
   veil.addColorStop(0, "rgba(5,12,14,0.55)");
   veil.addColorStop(1, "rgba(5,12,14,0)");
   ctx.fillStyle = veil;
-  ctx.fillRect(0, 0, W, 340);
+  ctx.fillRect(ext.x0, 0, span, 340);
 }
 
 /* ---------- the animated parts ---------- */
@@ -754,13 +598,13 @@ export function createScene(
   variant: SceneVariant,
 ): Scene {
   const ctx = get2d(canvas);
-  const focus = FOCUS[variant];
+  const mode = MODES[variant];
 
-  // everything that moves, generated once
+  // everything that moves, generated once (stars and fireflies cover a wide range for wide screens)
   const starRand = mulberry32(17);
   const stars: Star[] = [];
-  while (stars.length < 46) {
-    const x = starRand() * W;
+  while (stars.length < 110) {
+    const x = -700 + starRand() * 2200;
     const y = starRand() * 300;
     if (Math.hypot(x - 190, y - 170) < 48) continue;
     stars.push({
@@ -790,8 +634,8 @@ export function createScene(
   }));
 
   const flyRand = mulberry32(38);
-  const fireflies: Firefly[] = Array.from({ length: 26 }, () => ({
-    bx: 40 + flyRand() * 720,
+  const fireflies: Firefly[] = Array.from({ length: 40 }, () => ({
+    bx: -500 + flyRand() * 1800,
     by: 520 + flyRand() * 330,
     ax: 14 + flyRand() * 26,
     ay: 10 + flyRand() * 18,
@@ -813,6 +657,7 @@ export function createScene(
   let k = 1;
   let ox = 0;
   let oy = 0;
+  let ext: Extents = { x0: -20, x1: 820 };
   let ready = false;
 
   const place = (): void => ctx.setTransform(k, 0, 0, k, ox, oy);
@@ -824,15 +669,31 @@ export function createScene(
     canvas.width = pixelWidth;
     canvas.height = pixelHeight;
 
-    const scale = Math.max(width / W, height / H);
+    const scale =
+      mode.fit === "height" ? height / H : Math.max(width / W, height / H);
+    const sceneWidth = W * scale;
+    // centred when the screen is wider than the scene; otherwise keep the waterfall's side in view
+    const left =
+      sceneWidth <= width
+        ? (width - sceneWidth) / 2
+        : Math.min(
+            0,
+            Math.max(width - sceneWidth, width / 2 - mode.centerX * scale),
+          );
+    const top = mode.fit === "height" ? 0 : (height - H * scale) * mode.focus;
+
     k = scale * dpr;
-    ox = ((width - W * scale) / 2) * dpr;
-    oy = (height - H * scale) * focus * dpr;
+    ox = left * dpr;
+    oy = top * dpr;
+    ext = {
+      x0: Math.min(0, -left / scale) - 20,
+      x1: Math.max(W, (width - left) / scale) + 20,
+    };
 
     const stills: Array<[HTMLCanvasElement, (layer: Ctx) => void]> = [
-      [far, paintFar],
-      [cliff, paintCliff],
-      [front, paintFront],
+      [far, (layer) => paintFar(layer, ext)],
+      [cliff, (layer) => paintCliff(layer, ext)],
+      [front, (layer) => paintFront(layer, ext)],
     ];
     for (const [layer, paint] of stills) {
       layer.width = pixelWidth;
@@ -861,8 +722,13 @@ export function createScene(
   ): void {
     const shift = (t * speed) % FOG_W;
     ctx.globalAlpha = alpha;
-    ctx.drawImage(fogTexture, -shift, y, FOG_W, height);
-    ctx.drawImage(fogTexture, FOG_W - shift, y, FOG_W, height);
+    for (
+      let x = Math.floor(ext.x0 / FOG_W) * FOG_W - shift;
+      x < ext.x1;
+      x += FOG_W
+    ) {
+      ctx.drawImage(fogTexture, x, y, FOG_W, height);
+    }
     ctx.globalAlpha = 1;
   }
 

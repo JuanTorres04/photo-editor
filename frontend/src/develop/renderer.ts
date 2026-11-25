@@ -1,6 +1,8 @@
 import { computeScopes } from "./scopes";
 import type { ScopeData } from "./scopes";
 import type { EditSettings } from "./settings";
+import { buildLut, curvesAreIdentity, DEFAULT_CURVES } from "./curves";
+import type { CurveSet } from "./curves";
 
 const SCOPE_EDGE = 256;
 
@@ -33,6 +35,8 @@ uniform float u_saturation;
 uniform float u_sharpen;
 uniform float u_vignette;
 uniform float u_grain;
+uniform sampler2D u_curve;
+uniform float u_curveOn;
 
 const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
 
@@ -92,6 +96,16 @@ void main() {
   float amount = max(1.0 + u_saturation + u_vibrance * (1.0 - chroma), 0.0);
   p = mix(vec3(luma), p, amount);
 
+  // Tone curves: a lookup table that folds the RGB curve and each colour channel's curve together
+  if (u_curveOn > 0.5) {
+    vec3 q = (clamp(p, 0.0, 1.0) * 255.0 + 0.5) / 256.0;
+    p = vec3(
+      texture(u_curve, vec2(q.r, 0.5)).r,
+      texture(u_curve, vec2(q.g, 0.5)).g,
+      texture(u_curve, vec2(q.b, 0.5)).b
+    );
+  }
+
   vec2 size = vec2(textureSize(u_image, 0));
 
   // Sharpening: add back the difference between each pixel and the average of its neighbours
@@ -144,6 +158,8 @@ const UNIFORM_NAMES = [
   "u_sharpen",
   "u_vignette",
   "u_grain",
+  "u_curve",
+  "u_curveOn",
 ] as const;
 
 type UniformName = (typeof UNIFORM_NAMES)[number];
@@ -177,6 +193,8 @@ export class DevelopRenderer {
   private readonly scopeWidth: number;
   private readonly scopeHeight: number;
   private readonly scopePixels: Uint8Array;
+  private readonly curveTexture: WebGLTexture;
+  private curveRef: CurveSet = DEFAULT_CURVES;
 
   constructor(canvas: HTMLCanvasElement, image: ImageBitmap) {
     const gl = canvas.getContext("webgl2", { antialias: false, alpha: false });
@@ -270,6 +288,26 @@ export class DevelopRenderer {
       throw new Error("Your graphics card can't render the histogram.");
     }
     this.scopeFbo = scopeFbo;
+
+    const curveTexture = gl.createTexture();
+    if (!curveTexture) throw new Error("Could not create a graphics texture.");
+    gl.bindTexture(gl.TEXTURE_2D, curveTexture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA8,
+      256,
+      1,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      buildLut(DEFAULT_CURVES),
+    );
+    this.curveTexture = curveTexture;
   }
 
   private draw(settings: EditSettings, width: number, height: number): void {
@@ -293,6 +331,28 @@ export class DevelopRenderer {
     gl.uniform1f(uniforms.u_sharpen, settings.sharpen / 100);
     gl.uniform1f(uniforms.u_vignette, settings.vignette / 100);
     gl.uniform1f(uniforms.u_grain, settings.grain / 100);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.curveTexture);
+    if (settings.curves !== this.curveRef) {
+      gl.texSubImage2D(
+        gl.TEXTURE_2D,
+        0,
+        0,
+        0,
+        256,
+        1,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        buildLut(settings.curves),
+      );
+      this.curveRef = settings.curves;
+    }
+    gl.uniform1i(uniforms.u_curve, 1);
+    gl.uniform1f(
+      uniforms.u_curveOn,
+      curvesAreIdentity(settings.curves) ? 0 : 1,
+    );
+    gl.activeTexture(gl.TEXTURE0);
 
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
@@ -324,6 +384,7 @@ export class DevelopRenderer {
     this.gl.deleteFramebuffer(this.scopeFbo);
     this.gl.deleteTexture(this.scopeTexture);
     this.gl.deleteTexture(this.texture);
+    this.gl.deleteTexture(this.curveTexture);
     this.gl.deleteProgram(this.program);
   }
 

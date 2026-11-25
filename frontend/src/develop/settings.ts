@@ -1,3 +1,6 @@
+import { DEFAULT_CURVES, curvesAreIdentity, normalizeCurves } from "./curves";
+import type { CurveSet } from "./curves";
+
 // A type alias (not an interface) so it can be stored in the database's JSON column.
 export type EditSettings = {
   exposure: number;
@@ -13,9 +16,11 @@ export type EditSettings = {
   sharpen: number;
   vignette: number;
   grain: number;
+  curves: CurveSet;
 };
 
-export type SettingKey = keyof EditSettings;
+/** The settings that are a single number, which is everything the sliders control. */
+export type SettingKey = Exclude<keyof EditSettings, "curves">;
 
 export const DEFAULT_SETTINGS: EditSettings = {
   exposure: 0,
@@ -31,6 +36,7 @@ export const DEFAULT_SETTINGS: EditSettings = {
   sharpen: 0,
   vignette: 0,
   grain: 0,
+  curves: DEFAULT_CURVES,
 };
 
 export interface SliderSpec {
@@ -110,8 +116,10 @@ export const SLIDER_GROUPS: SliderGroup[] = [
 const ALL_SPECS = SLIDER_GROUPS.flatMap((group) => group.sliders);
 
 export function isDefault(settings: EditSettings): boolean {
-  return ALL_SPECS.every(
-    (spec) => settings[spec.key] === DEFAULT_SETTINGS[spec.key],
+  return (
+    ALL_SPECS.every(
+      (spec) => settings[spec.key] === DEFAULT_SETTINGS[spec.key],
+    ) && curvesAreIdentity(settings.curves)
   );
 }
 
@@ -128,5 +136,6 @@ export function normalizeSettings(value: unknown): EditSettings {
       result[spec.key] = Math.min(spec.max, Math.max(spec.min, raw));
     }
   }
+  result.curves = normalizeCurves(source.curves);
   return result;
 }
