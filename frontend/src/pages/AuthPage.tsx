@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { Navigate } from "react-router-dom";
 import { Logo } from "../components/Logo";
-import { MountainArt } from "../components/MountainArt";
+import { WaterfallScene } from "../components/WaterfallScene";
 import { APP_NAME } from "../lib/config";
 import { getErrorMessage } from "../lib/errors";
 import { useAuthStore } from "../store/authStore";
@@ -51,14 +51,13 @@ export function AuthPage() {
 
   return (
     <div className="auth-page">
-      <MountainArt variant="banner" className="auth-banner" />
+      <WaterfallScene variant="banner" className="auth-banner" />
       <section className="auth-art" aria-hidden="true">
-        <h2>Every photo in its best light.</h2>
+        <h2>Every photo at it's best.</h2>
         <p>
-          Edit in your browser with the tools pros use. Your originals are never
-          changed.
+          Edit in your browser for free with the software pros use.
         </p>
-        <MountainArt className="mountain-art" />
+        <WaterfallScene className="mountain-art" />
       </section>
 
       <div className="auth-side">

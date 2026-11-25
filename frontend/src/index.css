@@ -4,28 +4,28 @@
     "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
     "SF Pro Text", Roboto, "Helvetica Neue", Arial, sans-serif;
 
-  /* surfaces: a deep evergreen night, close to neutral so photos still read true */
-  --bg: #0a1211;
-  --panel: #111c1a;
-  --panel-2: #182623;
-  --panel-3: #21322f;
-  --line: #22332f;
-  --line-strong: #385048;
-  --text: #eaf3ef;
-  --text-dim: #a9bdb6;
-  --text-faint: #8fa59d;
+  /* surfaces: a twilight forest, close to neutral so photos still read true */
+  --bg: #070f0e;
+  --panel: #0e1917;
+  --panel-2: #142320;
+  --panel-3: #1c2f2b;
+  --line: #1f302d;
+  --line-strong: #34504a;
+  --text: #e8f2ee;
+  --text-dim: #a3b9b1;
+  --text-faint: #8aa098;
 
-  /* the one action colour: Golden Gate orange */
-  --accent: #f26a3c;
-  --accent-hover: #ff8456;
-  --accent-ink: #1c0a03;
-  --accent-soft: rgba(242, 106, 60, 0.15);
+  /* the one action colour: fern green */
+  --accent: #6fdc9c;
+  --accent-hover: #8cebb2;
+  --accent-ink: #04170c;
+  --accent-soft: rgba(111, 220, 156, 0.14);
 
-  /* the Pacific Northwest palette, used only in small touches */
-  --c-orange: #f26a3c;
-  --c-fern: #4fd08a;
-  --c-glacier: #8fd3ff;
-  --c-lichen: #cfd96a;
+  /* the forest palette, used only in small touches */
+  --c-water: #8fd3ee;
+  --c-fern: #6fdc9c;
+  --c-firefly: #dfe86a;
+  --c-mist: #b6d4cc;
 
   --danger: #ff7b7b;
   --success: #6fdc9c;
@@ -1075,7 +1075,7 @@ input[type="range"].adjust-range::-moz-range-track {
   margin-top: 0.75rem;
 }
 
-/* ---------- Pacific Northwest theme touches ---------- */
+/* ---------- twilight forest theme touches ---------- */
 .brand {
   gap: 0.6rem;
   font-weight: 600;
@@ -1086,7 +1086,7 @@ input[type="range"].adjust-range::-moz-range-track {
   flex: none;
 }
 
-/* a thin line under the top bar: glacier, fern, then bridge orange */
+/* a thin line under the top bar: water, fern, then firefly */
 .topbar::after {
   content: "";
   position: absolute;
@@ -1098,12 +1098,12 @@ input[type="range"].adjust-range::-moz-range-track {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    var(--c-glacier) 22%,
-    var(--c-fern) 55%,
-    var(--c-orange) 82%,
+    var(--c-water) 22%,
+    var(--c-fern) 58%,
+    var(--c-firefly) 84%,
     transparent 100%
   );
-  opacity: 0.75;
+  opacity: 0.7;
 }
 
 /* sign-in: the scene fills the whole left panel, with the headline over it */
@@ -1114,6 +1114,7 @@ input[type="range"].adjust-range::-moz-range-track {
   position: absolute;
   inset: 0;
   z-index: 0;
+  display: block;
   width: 100%;
   height: 100%;
 }
@@ -1126,7 +1127,7 @@ input[type="range"].adjust-range::-moz-range-track {
 }
 .auth-art p {
   font-size: 1.05rem;
-  text-shadow: 0 1px 14px rgba(10, 18, 17, 0.85);
+  text-shadow: 0 1px 14px rgba(7, 15, 14, 0.9);
 }
 .auth-banner {
   display: block;
@@ -1175,14 +1176,14 @@ input[type="range"].adjust-range::-moz-range-track {
   margin-left: auto;
 }
 .group[data-group="light"] {
-  --dot: var(--c-glacier);
+  --dot: var(--c-water);
 }
 .group[data-group="color"] {
-  --dot: var(--c-orange);
+  --dot: var(--c-firefly);
 }
 .group[data-group="effects"] {
   --dot: var(--c-fern);
 }
 .group[data-group="versions"] {
-  --dot: var(--c-lichen);
+  --dot: var(--c-mist);
 }

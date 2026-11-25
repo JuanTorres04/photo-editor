@@ -12,14 +12,24 @@ export function Logo({ size = 22 }: LogoProps) {
       aria-hidden="true"
       focusable="false"
     >
-      <path d="M4 23 16 6l12 17Z" fill="#2f8f86" />
-      <path d="M16 6l12 17H16Z" fill="#1f6b66" />
-      <path d="M16 6l3.6 5.4-3.6-1-3.6 1Z" fill="#eaf6ff" />
-      <g stroke="#f26a3c" strokeLinecap="round" fill="none">
-        <path d="M9 17v11M23 17v11" strokeWidth="2.2" />
-        <path d="M1 27 9 17Q16 25 23 17l8 10" strokeWidth="1.8" />
-        <path d="M1 27.5h30" strokeWidth="1.6" />
-      </g>
+      <path
+        d="M16 3 21 10h-2.5l5 7h-3l5.5 8H6l5.5-8h-3l5-7H11Z"
+        fill="#2c8a62"
+      />
+      <path d="M16 3 21 10h-2.5l5 7h-3l5.5 8H16Z" fill="#4ec78f" />
+      <path
+        d="M16 25v5"
+        stroke="#9fdcf0"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+      />
+      <path
+        d="M9 30q7-3 14 0"
+        stroke="#9fdcf0"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        fill="none"
+      />
     </svg>
   );
 }

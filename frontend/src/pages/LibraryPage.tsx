@@ -14,7 +14,7 @@ import { useAuthStore } from "../store/authStore";
 import { useLibraryStore } from "../store/libraryStore";
 import { useToastStore } from "../store/toastStore";
 import { useNavigate } from "react-router-dom";
-import { MountainArt } from "../components/MountainArt";
+import { WaterfallScene } from "../components/WaterfallScene";
 
 const URL_REFRESH_MS = 50 * 60 * 1000;
 
@@ -183,7 +183,7 @@ export function LibraryPage() {
 
         {status === "ready" && photos.length === 0 && (
           <div className="empty">
-            <MountainArt variant="wide" className="empty-art" />
+            <WaterfallScene variant="wide" className="empty-art" />
             <h2>Your library is empty</h2>
             <p>
               Drag photos here or import them. JPEG, PNG, and WebP up to 10 MB
