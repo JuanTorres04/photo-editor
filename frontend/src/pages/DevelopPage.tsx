@@ -405,7 +405,7 @@ export function DevelopPage() {
               </details>
             ))}
             <details className="group" data-group="curves" open>
-              <summary>Tone curve</summary>
+              <summary>Tone Curve</summary>
               <div className="group-body">
                 <CurveEditor
                   curves={settings.curves}
