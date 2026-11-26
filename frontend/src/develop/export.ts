@@ -1,3 +1,5 @@
+import { cropIsIdentity, croppedSize } from "./geometry";
+import type { CropSettings } from "./geometry";
 import { DevelopRenderer } from "./renderer";
 import type { EditSettings } from "./settings";
 
@@ -15,8 +17,11 @@ export const FORMAT_INFO: Record<
 export interface ExportSize {
   id: string;
   label: string;
+  /** The size of the finished picture. */
   width: number;
   height: number;
+  /** How much the original photo is scaled before cropping. 1 means full resolution. */
+  scale: number;
 }
 
 export type ExportPhase = "decoding" | "rendering" | "encoding";
@@ -39,41 +44,42 @@ export function gpuMaxEdge(): number {
   return edge;
 }
 
-function fit(
-  width: number,
-  height: number,
-  longEdge: number,
-): { width: number; height: number } {
-  const scale = Math.min(1, longEdge / Math.max(width, height));
-  return {
-    width: Math.max(1, Math.round(width * scale)),
-    height: Math.max(1, Math.round(height * scale)),
-  };
-}
-
-/** The sizes offered in the export dialog: the full size (or the biggest this device can do) and a few smaller ones. */
+/** The sizes offered in the export dialog, for the cropped picture: full resolution and a few smaller ones. */
 export function exportSizes(
-  width: number,
-  height: number,
+  photoWidth: number,
+  photoHeight: number,
+  crop: CropSettings,
   maxEdge: number,
 ): ExportSize[] {
-  const full = fit(width, height, maxEdge);
-  const limited = full.width !== width || full.height !== height;
-  const sizes: ExportSize[] = [
-    {
-      id: "original",
-      label: limited ? "Largest this device supports" : "Original size",
-      ...full,
-    },
-  ];
-  const fullEdge = Math.max(full.width, full.height);
+  const full = croppedSize(photoWidth, photoHeight, crop);
+  // the whole photo is loaded into the graphics card, so it is what has to stay under the device's limit
+  const limit = Math.min(1, maxEdge / Math.max(photoWidth, photoHeight));
+
+  const make = (id: string, label: string, scale: number): ExportSize => ({
+    id,
+    label,
+    scale,
+    width: Math.max(1, Math.round(full.width * scale)),
+    height: Math.max(1, Math.round(full.height * scale)),
+  });
+
+  const fullLabel =
+    limit < 1
+      ? "Largest this device supports"
+      : cropIsIdentity(crop)
+        ? "Original size"
+        : "Full resolution";
+  const sizes = [make("original", fullLabel, limit)];
+  const fullEdge = Math.max(sizes[0].width, sizes[0].height);
   for (const edge of [4096, 2048, 1080]) {
     if (edge < fullEdge) {
-      sizes.push({
-        id: String(edge),
-        label: `${edge} px on the long edge`,
-        ...fit(width, height, edge),
-      });
+      sizes.push(
+        make(
+          String(edge),
+          `${edge} px on the long edge`,
+          edge / Math.max(full.width, full.height),
+        ),
+      );
     }
   }
   return sizes;
@@ -92,10 +98,10 @@ export async function renderExport(
   let bitmap = await createImageBitmap(source, {
     imageOrientation: "from-image",
   });
-  if (bitmap.width !== size.width || bitmap.height !== size.height) {
+  if (Math.abs(size.scale - 1) > 1e-6) {
     const resized = await createImageBitmap(bitmap, {
-      resizeWidth: size.width,
-      resizeHeight: size.height,
+      resizeWidth: Math.max(1, Math.round(bitmap.width * size.scale)),
+      resizeHeight: Math.max(1, Math.round(bitmap.height * size.scale)),
       resizeQuality: "high",
     });
     bitmap.close();
@@ -107,7 +113,7 @@ export async function renderExport(
   let renderer: DevelopRenderer | null = null;
   try {
     renderer = new DevelopRenderer(canvas, bitmap);
-    renderer.render(settings);
+    renderer.render(settings); // the renderer sizes the canvas to the crop
     // toBlob must be called in the same task as the draw, before the browser clears the canvas
     return await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(

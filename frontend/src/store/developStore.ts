@@ -4,6 +4,7 @@ import type { EditSettings, SettingKey } from "../develop/settings";
 import type { CurveChannel, Point } from "../develop/curves";
 import { saveEdit } from "../lib/edits";
 import { useToastStore } from "./toastStore";
+import type { CropSettings } from "../develop/geometry";
 
 const SAVE_DELAY_MS = 700;
 const GROUP_WINDOW_MS = 600;
@@ -28,6 +29,7 @@ interface DevelopState {
     points: Point[],
     discrete?: boolean,
   ) => void;
+  setCrop: (crop: CropSettings, key: string, discrete?: boolean) => void;
   resetKey: (key: SettingKey) => void;
   resetAll: () => void;
   applySettings: (settings: EditSettings) => void;
@@ -95,6 +97,18 @@ export const useDevelopStore = create<DevelopState>((set, get) => {
           curves: { ...state.settings.curves, [channel]: points },
         },
       }));
+      schedule();
+    },
+
+    setCrop: (crop, key, discrete = false) => {
+      // Dragging the box is one undo step; presets, turns, and flips are steps of their own
+      const group = `crop:${key}`;
+      const now = Date.now();
+      if (discrete || group !== lastKey || now - lastChange > GROUP_WINDOW_MS)
+        remember();
+      lastKey = discrete ? null : group;
+      lastChange = now;
+      set((state) => ({ settings: { ...state.settings, crop } }));
       schedule();
     },
 

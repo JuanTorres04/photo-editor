@@ -1,10 +1,17 @@
+import { DEFAULT_CURVES, buildLut, curvesAreIdentity } from "./curves";
+import type { CurveSet } from "./curves";
+import { orientedSize } from "./geometry";
+import type { Size } from "./geometry";
 import { computeScopes } from "./scopes";
 import type { ScopeData } from "./scopes";
 import type { EditSettings } from "./settings";
-import { buildLut, curvesAreIdentity, DEFAULT_CURVES } from "./curves";
-import type { CurveSet } from "./curves";
 
 const SCOPE_EDGE = 256;
+
+export interface RenderOptions {
+  /** While cropping: show the whole straightened photo, with empty corners dark, instead of the cropped result. */
+  showFrame?: boolean;
+}
 
 const VERTEX = `#version 300 es
 out vec2 v_uv;
@@ -22,6 +29,8 @@ in vec2 v_uv;
 out vec4 outColor;
 
 uniform sampler2D u_image;
+uniform sampler2D u_curve;
+uniform float u_curveOn;
 uniform float u_exposure;
 uniform float u_contrast;
 uniform float u_highlights;
@@ -35,8 +44,13 @@ uniform float u_saturation;
 uniform float u_sharpen;
 uniform float u_vignette;
 uniform float u_grain;
-uniform sampler2D u_curve;
-uniform float u_curveOn;
+uniform vec4 u_crop;       // x, y, width, height of the crop inside the straightened picture (0 to 1)
+uniform float u_angle;     // straighten angle in radians
+uniform float u_quarter;   // quarter turns clockwise, 0 to 3
+uniform vec2 u_flip;       // 1.0 where the picture is mirrored horizontally / vertically
+uniform vec2 u_oriented;   // size in pixels after the quarter turns, before straightening
+uniform vec2 u_outSize;    // size in pixels of the picture being drawn
+uniform float u_showFrame; // 1.0 while cropping: show the whole frame
 
 const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
 
@@ -76,8 +90,33 @@ float hash(vec2 p) {
   return fract((p3.x + p3.y) * p3.z);
 }
 
+// Finds where a point of the finished picture comes from in the original photo.
+// Returns false for points that fall outside the (straightened) photo.
+bool mapToSource(vec2 uv, out vec2 src) {
+  vec2 f = u_crop.xy + uv * u_crop.zw;                   // position in the straightened picture
+  vec2 p = (f - 0.5) * u_oriented;                       // pixels from its centre
+  float c = cos(u_angle);
+  float s = sin(u_angle);
+  vec2 q = vec2(c * p.x + s * p.y, -s * p.x + c * p.y);  // undo the straighten rotation
+  vec2 o = q / u_oriented + 0.5;                         // position in the turned and mirrored photo
+  bool inside = o.x >= 0.0 && o.x <= 1.0 && o.y >= 0.0 && o.y <= 1.0;
+  o = mix(o, vec2(1.0) - o, u_flip);                     // undo the mirroring
+  if (u_quarter > 0.5 && u_quarter < 1.5) {
+    src = vec2(o.y, 1.0 - o.x);                          // undo the quarter turns
+  } else if (u_quarter > 1.5 && u_quarter < 2.5) {
+    src = vec2(1.0 - o.x, 1.0 - o.y);
+  } else if (u_quarter > 2.5) {
+    src = vec2(1.0 - o.y, o.x);
+  } else {
+    src = o;
+  }
+  return inside;
+}
+
 void main() {
-  vec3 src = texture(u_image, v_uv).rgb;
+  vec2 srcUv;
+  bool inside = mapToSource(v_uv, srcUv);
+  vec3 src = texture(u_image, srcUv).rgb;
   vec3 lin = srgbToLinear(src);
 
   // White balance as per-channel gains, normalised so brightness stays about the same
@@ -98,31 +137,29 @@ void main() {
 
   // Tone curves: a lookup table that folds the RGB curve and each colour channel's curve together
   if (u_curveOn > 0.5) {
-    vec3 q = (clamp(p, 0.0, 1.0) * 255.0 + 0.5) / 256.0;
+    vec3 t = (clamp(p, 0.0, 1.0) * 255.0 + 0.5) / 256.0;
     p = vec3(
-      texture(u_curve, vec2(q.r, 0.5)).r,
-      texture(u_curve, vec2(q.g, 0.5)).g,
-      texture(u_curve, vec2(q.b, 0.5)).b
+      texture(u_curve, vec2(t.r, 0.5)).r,
+      texture(u_curve, vec2(t.g, 0.5)).g,
+      texture(u_curve, vec2(t.b, 0.5)).b
     );
   }
 
-  vec2 size = vec2(textureSize(u_image, 0));
-
   // Sharpening: add back the difference between each pixel and the average of its neighbours
   if (u_sharpen > 0.0) {
-    vec2 texel = 1.0 / size;
+    vec2 texel = 1.0 / vec2(textureSize(u_image, 0));
     vec3 blur = 0.25 * (
-      texture(u_image, v_uv + vec2(texel.x, 0.0)).rgb +
-      texture(u_image, v_uv - vec2(texel.x, 0.0)).rgb +
-      texture(u_image, v_uv + vec2(0.0, texel.y)).rgb +
-      texture(u_image, v_uv - vec2(0.0, texel.y)).rgb
+      texture(u_image, srcUv + vec2(texel.x, 0.0)).rgb +
+      texture(u_image, srcUv - vec2(texel.x, 0.0)).rgb +
+      texture(u_image, srcUv + vec2(0.0, texel.y)).rgb +
+      texture(u_image, srcUv - vec2(0.0, texel.y)).rgb
     );
     p += (src - blur) * u_sharpen * 2.2;
   }
 
-  // Vignette: darken (negative) or lighten (positive) towards the corners, shaped by the photo's aspect ratio
+  // Vignette: darken (negative) or lighten (positive) towards the corners of the finished picture
   if (u_vignette != 0.0) {
-    vec2 aspect = vec2(size.x / size.y, 1.0);
+    vec2 aspect = vec2(u_outSize.x / u_outSize.y, 1.0);
     float r = length((v_uv - 0.5) * aspect) / length(aspect * 0.5);
     float edge = smoothstep(0.3, 1.05, r);
     if (u_vignette < 0.0) {
@@ -134,17 +171,22 @@ void main() {
 
   // Grain: the same texture whatever the export size, strongest in the midtones
   if (u_grain > 0.0) {
-    float scale = min(1.0, 1400.0 / max(size.x, size.y));
-    float noise = hash(floor(v_uv * size * scale)) - 0.5;
+    float scale = min(1.0, 1400.0 / max(u_outSize.x, u_outSize.y));
+    float noise = hash(floor(v_uv * u_outSize * scale)) - 0.5;
     float midtones = 1.0 - abs(dot(p, LUMA) * 2.0 - 1.0) * 0.6;
     p += noise * u_grain * 0.22 * midtones;
   }
 
-  outColor = vec4(clamp(p, 0.0, 1.0), 1.0);
+  p = clamp(p, 0.0, 1.0);
+  // While cropping, the empty corners of a tilted photo show as dark
+  if (!inside && u_showFrame > 0.5) p = vec3(0.035, 0.05, 0.05);
+  outColor = vec4(p, 1.0);
 }`;
 
 const UNIFORM_NAMES = [
   "u_image",
+  "u_curve",
+  "u_curveOn",
   "u_exposure",
   "u_contrast",
   "u_highlights",
@@ -158,8 +200,13 @@ const UNIFORM_NAMES = [
   "u_sharpen",
   "u_vignette",
   "u_grain",
-  "u_curve",
-  "u_curveOn",
+  "u_crop",
+  "u_angle",
+  "u_quarter",
+  "u_flip",
+  "u_oriented",
+  "u_outSize",
+  "u_showFrame",
 ] as const;
 
 type UniformName = (typeof UNIFORM_NAMES)[number];
@@ -184,6 +231,7 @@ function compile(
 export class DevelopRenderer {
   readonly width: number;
   readonly height: number;
+  private readonly canvas: HTMLCanvasElement;
   private readonly gl: WebGL2RenderingContext;
   private readonly program: WebGLProgram;
   private readonly texture: WebGLTexture;
@@ -202,9 +250,10 @@ export class DevelopRenderer {
       throw new Error(
         "Your browser doesn't support WebGL 2, which the editor needs.",
       );
+    this.canvas = canvas;
     this.gl = gl;
 
-    // The canvas keeps the photo's own size; CSS scales it to fit the screen
+    // The canvas follows the size of the finished picture; CSS scales it to fit the screen
     this.width = image.width;
     this.height = image.height;
     canvas.width = this.width;
@@ -289,6 +338,7 @@ export class DevelopRenderer {
     }
     this.scopeFbo = scopeFbo;
 
+    // The tone curve lookup table
     const curveTexture = gl.createTexture();
     if (!curveTexture) throw new Error("Could not create a graphics texture.");
     gl.bindTexture(gl.TEXTURE_2D, curveTexture);
@@ -310,9 +360,28 @@ export class DevelopRenderer {
     this.curveTexture = curveTexture;
   }
 
-  private draw(settings: EditSettings, width: number, height: number): void {
+  /** The size of the finished picture: the crop, or the whole straightened frame while cropping. */
+  private outputSize(settings: EditSettings, frame: boolean): Size {
+    const oriented = orientedSize(
+      this.width,
+      this.height,
+      settings.crop.quarter,
+    );
+    if (frame) return oriented;
+    return {
+      width: Math.max(1, Math.round(settings.crop.w * oriented.width)),
+      height: Math.max(1, Math.round(settings.crop.h * oriented.height)),
+    };
+  }
+
+  private draw(
+    settings: EditSettings,
+    target: Size,
+    out: Size,
+    frame: boolean,
+  ): void {
     const { gl, uniforms } = this;
-    gl.viewport(0, 0, width, height);
+    gl.viewport(0, 0, target.width, target.height);
     gl.useProgram(this.program);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
@@ -331,6 +400,18 @@ export class DevelopRenderer {
     gl.uniform1f(uniforms.u_sharpen, settings.sharpen / 100);
     gl.uniform1f(uniforms.u_vignette, settings.vignette / 100);
     gl.uniform1f(uniforms.u_grain, settings.grain / 100);
+
+    const { crop } = settings;
+    const oriented = orientedSize(this.width, this.height, crop.quarter);
+    if (frame) gl.uniform4f(uniforms.u_crop, 0, 0, 1, 1);
+    else gl.uniform4f(uniforms.u_crop, crop.x, crop.y, crop.w, crop.h);
+    gl.uniform1f(uniforms.u_angle, (crop.angle * Math.PI) / 180);
+    gl.uniform1f(uniforms.u_quarter, crop.quarter);
+    gl.uniform2f(uniforms.u_flip, crop.flipH ? 1 : 0, crop.flipV ? 1 : 0);
+    gl.uniform2f(uniforms.u_oriented, oriented.width, oriented.height);
+    gl.uniform2f(uniforms.u_outSize, out.width, out.height);
+    gl.uniform1f(uniforms.u_showFrame, frame ? 1 : 0);
+
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, this.curveTexture);
     if (settings.curves !== this.curveRef) {
@@ -357,16 +438,27 @@ export class DevelopRenderer {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
-  render(settings: EditSettings): void {
+  render(settings: EditSettings, options: RenderOptions = {}): void {
+    const frame = options.showFrame === true;
+    const out = this.outputSize(settings, frame);
+    if (this.canvas.width !== out.width || this.canvas.height !== out.height) {
+      this.canvas.width = out.width;
+      this.canvas.height = out.height;
+    }
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
-    this.draw(settings, this.width, this.height);
+    this.draw(settings, out, out, frame);
   }
 
   /** Renders a small copy of the edited photo and counts its pixels for the histogram and waveform. */
   readScopes(settings: EditSettings): ScopeData {
     const { gl } = this;
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.scopeFbo);
-    this.draw(settings, this.scopeWidth, this.scopeHeight);
+    this.draw(
+      settings,
+      { width: this.scopeWidth, height: this.scopeHeight },
+      this.outputSize(settings, false),
+      false,
+    );
     gl.readPixels(
       0,
       0,
@@ -383,8 +475,8 @@ export class DevelopRenderer {
   dispose(): void {
     this.gl.deleteFramebuffer(this.scopeFbo);
     this.gl.deleteTexture(this.scopeTexture);
-    this.gl.deleteTexture(this.texture);
     this.gl.deleteTexture(this.curveTexture);
+    this.gl.deleteTexture(this.texture);
     this.gl.deleteProgram(this.program);
   }
 

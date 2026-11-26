@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AdjustSlider } from "../components/AdjustSlider";
+import { CropOverlay } from "../components/CropOverlay";
+import { CropPanel } from "../components/CropPanel";
+import { CurveEditor } from "../components/CurveEditor";
+import { ExportDialog } from "../components/ExportDialog";
 import { Scopes } from "../components/Scopes";
 import { VersionsPanel } from "../components/VersionsPanel";
+import { orientedSize } from "../develop/geometry";
 import { DevelopRenderer } from "../develop/renderer";
 import type { ScopeData } from "../develop/scopes";
 import {
@@ -14,9 +19,8 @@ import { loadEdit } from "../lib/edits";
 import { getErrorMessage } from "../lib/errors";
 import { downloadPreview, getPhoto } from "../lib/photos";
 import type { Photo } from "../lib/photos";
+import { useFit } from "../lib/useFit";
 import { useDevelopStore } from "../store/developStore";
-import { ExportDialog } from "../components/ExportDialog";
-import { CurveEditor } from "../components/CurveEditor";
 
 type LoadState =
   | { status: "loading" }
@@ -42,6 +46,8 @@ export function DevelopPage() {
   const [comparing, setComparing] = useState(false);
   const [scope, setScope] = useState<ScopeData | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [cropping, setCropping] = useState(false);
+  const [ratio, setRatio] = useState<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<DevelopRenderer | null>(null);
 
@@ -52,21 +58,40 @@ export function DevelopPage() {
   const canUndo = useDevelopStore((state) => state.past.length > 0);
   const canRedo = useDevelopStore((state) => state.future.length > 0);
   const setValue = useDevelopStore((state) => state.setValue);
+  const setCurve = useDevelopStore((state) => state.setCurve);
+  const setCrop = useDevelopStore((state) => state.setCrop);
   const resetKey = useDevelopStore((state) => state.resetKey);
   const resetAll = useDevelopStore((state) => state.resetAll);
   const applySettings = useDevelopStore((state) => state.applySettings);
   const undo = useDevelopStore((state) => state.undo);
   const redo = useDevelopStore((state) => state.redo);
   const flush = useDevelopStore((state) => state.flush);
-  const setCurve = useDevelopStore((state) => state.setCurve);
 
   const invalidId = !photoId || !UUID.test(photoId);
   const view: LoadState = invalidId ? { status: "missing" } : load;
   const readyBitmap = view.status === "ready" ? view.bitmap : null;
+  const current = view.status === "ready" ? view.photo : null;
   const dirty =
     view.status === "ready" && JSON.stringify(settings) !== savedJson;
   // While comparing, the photo (and the scopes) show the original
   const shown = comparing ? DEFAULT_SETTINGS : settings;
+  const editingCrop = cropping && !comparing;
+
+  // The shape of the picture on screen: the whole frame while cropping, otherwise the cropped result
+  const frame = orientedSize(
+    current?.width ?? 3,
+    current?.height ?? 2,
+    settings.crop.quarter,
+  );
+  const shownFrame = orientedSize(
+    current?.width ?? 3,
+    current?.height ?? 2,
+    shown.crop.quarter,
+  );
+  const displayAspect = editingCrop
+    ? shownFrame.width / shownFrame.height
+    : (shown.crop.w * shownFrame.width) / (shown.crop.h * shownFrame.height);
+  const fit = useFit(displayAspect);
 
   // 1. Load the photo row, its saved edit, and the preview image
   useEffect(() => {
@@ -129,13 +154,13 @@ export function DevelopPage() {
     };
   }, [readyBitmap]);
 
-  // 4. Redraw whenever a slider moves or compare is held (once per frame at most)
+  // 4. Redraw whenever a slider moves, the crop changes, or compare is held (once per frame at most)
   useEffect(() => {
-    const frame = requestAnimationFrame(() =>
-      rendererRef.current?.render(shown),
+    const frameId = requestAnimationFrame(() =>
+      rendererRef.current?.render(shown, { showFrame: editingCrop }),
     );
-    return () => cancelAnimationFrame(frame);
-  }, [shown]);
+    return () => cancelAnimationFrame(frameId);
+  }, [shown, editingCrop]);
 
   // 5. Refresh the histogram and waveform shortly after things settle
   useEffect(() => {
@@ -161,7 +186,7 @@ export function DevelopPage() {
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  // 8. Keyboard shortcuts: Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y, and hold \ to compare
+  // 8. Keyboard shortcuts: Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y, C for the crop tool, and hold \ to compare
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target)) return;
@@ -174,6 +199,8 @@ export function DevelopPage() {
       } else if (modifier && key === "y") {
         event.preventDefault();
         redo();
+      } else if (key === "c" && !modifier && !event.altKey) {
+        setCropping((on) => !on);
       } else if (event.key === "\\" && !event.repeat) {
         setComparing(true);
       }
@@ -277,7 +304,7 @@ export function DevelopPage() {
           )}
         </div>
 
-        <div className="stage-canvas">
+        <div className="stage-canvas" ref={fit.ref}>
           {view.status === "loading" && (
             <div className="stage-status" role="status">
               <span className="spinner" aria-hidden="true" />
@@ -305,11 +332,24 @@ export function DevelopPage() {
             </div>
           )}
           {view.status === "ready" && !glError && (
-            <canvas
-              ref={canvasRef}
-              role="img"
-              aria-label={`Preview of ${view.photo.title || "your photo"}`}
-            />
+            <div
+              className="canvas-wrap"
+              style={{ width: fit.width, height: fit.height }}
+            >
+              <canvas
+                ref={canvasRef}
+                role="img"
+                aria-label={`Preview of ${view.photo.title || "your photo"}`}
+              />
+              {editingCrop && (
+                <CropOverlay
+                  crop={settings.crop}
+                  frame={frame}
+                  ratio={ratio}
+                  onChange={setCrop}
+                />
+              )}
+            </div>
           )}
           {comparing && <span className="compare-badge">Original</span>}
         </div>
@@ -329,6 +369,20 @@ export function DevelopPage() {
                 Reset all
               </button>
             </div>
+            <details className="group" data-group="crop" open>
+              <summary>Crop and Rotate</summary>
+              <div className="group-body">
+                <CropPanel
+                  crop={settings.crop}
+                  frame={frame}
+                  cropping={cropping}
+                  ratio={ratio}
+                  onCropping={setCropping}
+                  onRatio={setRatio}
+                  onChange={setCrop}
+                />
+              </div>
+            </details>
             {SLIDER_GROUPS.map((group) => (
               <details
                 key={group.id}

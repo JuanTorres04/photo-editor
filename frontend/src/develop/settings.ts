@@ -1,5 +1,7 @@
 import { DEFAULT_CURVES, curvesAreIdentity, normalizeCurves } from "./curves";
 import type { CurveSet } from "./curves";
+import { DEFAULT_CROP, cropIsIdentity, normalizeCrop } from "./geometry";
+import type { CropSettings } from "./geometry";
 
 // A type alias (not an interface) so it can be stored in the database's JSON column.
 export type EditSettings = {
@@ -17,10 +19,11 @@ export type EditSettings = {
   vignette: number;
   grain: number;
   curves: CurveSet;
+  crop: CropSettings;
 };
 
 /** The settings that are a single number, which is everything the sliders control. */
-export type SettingKey = Exclude<keyof EditSettings, "curves">;
+export type SettingKey = Exclude<keyof EditSettings, "curves" | "crop">;
 
 export const DEFAULT_SETTINGS: EditSettings = {
   exposure: 0,
@@ -37,6 +40,7 @@ export const DEFAULT_SETTINGS: EditSettings = {
   vignette: 0,
   grain: 0,
   curves: DEFAULT_CURVES,
+  crop: DEFAULT_CROP,
 };
 
 export interface SliderSpec {
@@ -119,7 +123,9 @@ export function isDefault(settings: EditSettings): boolean {
   return (
     ALL_SPECS.every(
       (spec) => settings[spec.key] === DEFAULT_SETTINGS[spec.key],
-    ) && curvesAreIdentity(settings.curves)
+    ) &&
+    curvesAreIdentity(settings.curves) &&
+    cropIsIdentity(settings.crop)
   );
 }
 
@@ -137,5 +143,6 @@ export function normalizeSettings(value: unknown): EditSettings {
     }
   }
   result.curves = normalizeCurves(source.curves);
+  result.crop = normalizeCrop(source.crop);
   return result;
 }

@@ -39,9 +39,10 @@ export function ExportDialog({ photo, open, onClose }: ExportDialogProps) {
   const [phase, setPhase] = useState<Phase | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const crop = useDevelopStore((state) => state.settings.crop);
   const sizes = useMemo(
-    () => exportSizes(photo.width, photo.height, gpuMaxEdge()),
-    [photo.width, photo.height],
+    () => exportSizes(photo.width, photo.height, crop, gpuMaxEdge()),
+    [photo.width, photo.height, crop],
   );
   const size = sizes.find((item) => item.id === sizeId) ?? sizes[0];
   const busy = phase !== null;
