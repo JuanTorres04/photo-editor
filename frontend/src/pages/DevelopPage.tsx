@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AdjustSlider } from "../components/AdjustSlider";
 import { CropOverlay } from "../components/CropOverlay";
@@ -21,6 +21,11 @@ import { downloadPreview, getPhoto } from "../lib/photos";
 import type { Photo } from "../lib/photos";
 import { useFit } from "../lib/useFit";
 import { useDevelopStore } from "../store/developStore";
+import { PresetsPanel } from "../components/PresetsPanel";
+import { autoSettings } from "../develop/auto";
+import { applyLook, lookOnly } from "../develop/looks";
+import { useClipboardStore } from "../store/clipboardStore";
+import { useToastStore } from "../store/toastStore";
 
 type LoadState =
   | { status: "loading" }
@@ -48,6 +53,7 @@ export function DevelopPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const [cropping, setCropping] = useState(false);
   const [ratio, setRatio] = useState<number | null>(null);
+  const [rendererReady, setRendererReady] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<DevelopRenderer | null>(null);
 
@@ -66,6 +72,10 @@ export function DevelopPage() {
   const undo = useDevelopStore((state) => state.undo);
   const redo = useDevelopStore((state) => state.redo);
   const flush = useDevelopStore((state) => state.flush);
+  const copied = useClipboardStore((state) => state.copied);
+  const copiedFrom = useClipboardStore((state) => state.from);
+  const copyLook = useClipboardStore((state) => state.copy);
+  const push = useToastStore((state) => state.push);
 
   const invalidId = !photoId || !UUID.test(photoId);
   const view: LoadState = invalidId ? { status: "missing" } : load;
@@ -92,6 +102,33 @@ export function DevelopPage() {
     ? shownFrame.width / shownFrame.height
     : (shown.crop.w * shownFrame.width) / (shown.crop.h * shownFrame.height);
   const fit = useFit(displayAspect);
+  const getRenderer = useCallback(() => rendererRef.current, []);
+
+  const handleAuto = () => {
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+    // analyse the photo as it was shot (with the current crop), so pressing Auto twice gives the same result
+    const measured = renderer.readScopes({
+      ...DEFAULT_SETTINGS,
+      crop: settings.crop,
+    });
+    applySettings({ ...settings, ...autoSettings(measured) });
+    push("Auto settings applied. Press Ctrl+Z to undo.", "success");
+  };
+
+  const handleCopy = () => {
+    copyLook(
+      lookOnly(settings),
+      view.status === "ready" ? view.photo.title || "Untitled photo" : "",
+    );
+    push("Edit copied. Open another photo and choose Paste edit.", "success");
+  };
+
+  const handlePaste = () => {
+    if (!copied) return;
+    applySettings(applyLook(copied, settings));
+    push("Edit pasted. Press Ctrl+Z to undo.", "success");
+  };
 
   // 1. Load the photo row, its saved edit, and the preview image
   useEffect(() => {
@@ -145,12 +182,14 @@ export function DevelopPage() {
       renderer = new DevelopRenderer(canvas, readyBitmap);
       rendererRef.current = renderer;
       renderer.render(useDevelopStore.getState().settings);
+      setRendererReady(true);
     } catch (err) {
       setGlError(getErrorMessage(err));
     }
     return () => {
       renderer?.dispose();
       if (rendererRef.current === renderer) rendererRef.current = null;
+      setRendererReady(false);
     };
   }, [readyBitmap]);
 
@@ -369,6 +408,37 @@ export function DevelopPage() {
                 Reset all
               </button>
             </div>
+            <div className="panel-tools">
+              <button onClick={handleAuto} title="Set the basics automatically">
+                Auto
+              </button>
+              <button onClick={handleCopy} title="Copy this photo's look">
+                Copy edit
+              </button>
+              <button
+                onClick={handlePaste}
+                disabled={!copied}
+                title={
+                  copied
+                    ? `Paste the edit copied from ${copiedFrom || "another photo"}`
+                    : "Copy an edit from a photo first"
+                }
+              >
+                Paste edit
+              </button>
+            </div>
+            <details className="group" data-group="presets" open>
+              <summary>Presets</summary>
+              <div className="group-body">
+                <PresetsPanel
+                  photoId={view.photo.id}
+                  settings={settings}
+                  ready={rendererReady}
+                  getRenderer={getRenderer}
+                  onApply={applySettings}
+                />
+              </div>
+            </details>
             <details className="group" data-group="crop" open>
               <summary>Crop and Rotate</summary>
               <div className="group-body">

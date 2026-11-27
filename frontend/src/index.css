@@ -1586,3 +1586,93 @@ input[type="range"].adjust-range::-moz-range-track {
   font-size: 0.78rem;
   line-height: 1.45;
 }
+
+/* ---------- presets, auto, copy and paste ---------- */
+.group[data-group="presets"] {
+  --dot: #7fe0d4;
+}
+.panel-tools {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.panel-tools button {
+  flex: 1;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.82rem;
+}
+
+.presets {
+  display: grid;
+  gap: 0.6rem;
+}
+.preset-heading {
+  margin: 0.2rem 0 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.preset-cell {
+  position: relative;
+}
+.preset {
+  display: grid;
+  gap: 0.3rem;
+  width: 100%;
+  padding: 0.3rem;
+  text-align: center;
+  background: var(--panel-2);
+  border: 1px solid transparent;
+}
+.preset:hover:not(:disabled) {
+  background: var(--panel-3);
+  border-color: var(--line-strong);
+}
+.preset span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+.preset-thumb {
+  display: block;
+  width: 100%;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #101312;
+}
+.preset-delete {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 0 0.4rem;
+  line-height: 1.4;
+  font-size: 0.9rem;
+  background: rgba(7, 15, 14, 0.82);
+  border-color: transparent;
+}
+.preset-form {
+  display: flex;
+  gap: 0.4rem;
+}
+.preset-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem 0.6rem;
+}
+.presets .muted {
+  font-size: 0.78rem;
+  line-height: 1.45;
+}

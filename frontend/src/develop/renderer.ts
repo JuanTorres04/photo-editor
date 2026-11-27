@@ -243,6 +243,10 @@ export class DevelopRenderer {
   private readonly scopePixels: Uint8Array;
   private readonly curveTexture: WebGLTexture;
   private curveRef: CurveSet = DEFAULT_CURVES;
+  private thumbTexture: WebGLTexture | null = null;
+  private thumbFbo: WebGLFramebuffer | null = null;
+  private thumbWidth = 0;
+  private thumbHeight = 0;
 
   constructor(canvas: HTMLCanvasElement, image: ImageBitmap) {
     const gl = canvas.getContext("webgl2", { antialias: false, alpha: false });
@@ -472,7 +476,73 @@ export class DevelopRenderer {
     return computeScopes(this.scopePixels, this.scopeWidth, this.scopeHeight);
   }
 
+  /** Renders a small picture of the photo with the given settings, for previews. Rows come back top-down. */
+  renderThumb(settings: EditSettings, longEdge: number): ImageData {
+    const { gl } = this;
+    const out = this.outputSize(settings, false);
+    const scale = Math.min(1, longEdge / Math.max(out.width, out.height));
+    const width = Math.max(1, Math.round(out.width * scale));
+    const height = Math.max(1, Math.round(out.height * scale));
+
+    if (!this.thumbTexture || !this.thumbFbo) {
+      const texture = gl.createTexture();
+      const fbo = gl.createFramebuffer();
+      if (!texture || !fbo)
+        throw new Error("Could not create a preview buffer.");
+      this.thumbTexture = texture;
+      this.thumbFbo = fbo;
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    }
+    gl.bindTexture(gl.TEXTURE_2D, this.thumbTexture);
+    if (width !== this.thumbWidth || height !== this.thumbHeight) {
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA8,
+        width,
+        height,
+        0,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        null,
+      );
+      this.thumbWidth = width;
+      this.thumbHeight = height;
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.thumbFbo);
+    gl.framebufferTexture2D(
+      gl.FRAMEBUFFER,
+      gl.COLOR_ATTACHMENT0,
+      gl.TEXTURE_2D,
+      this.thumbTexture,
+      0,
+    );
+
+    this.draw(settings, { width, height }, out, false);
+
+    const pixels = new Uint8Array(width * height * 4);
+    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+    // the graphics card hands rows back bottom-first, so flip them
+    const flipped = new Uint8ClampedArray(width * height * 4);
+    const row = width * 4;
+    for (let y = 0; y < height; y++) {
+      flipped.set(
+        pixels.subarray((height - 1 - y) * row, (height - y) * row),
+        y * row,
+      );
+    }
+    return new ImageData(flipped, width, height);
+  }
+
   dispose(): void {
+    if (this.thumbFbo) this.gl.deleteFramebuffer(this.thumbFbo);
+    if (this.thumbTexture) this.gl.deleteTexture(this.thumbTexture);
     this.gl.deleteFramebuffer(this.scopeFbo);
     this.gl.deleteTexture(this.scopeTexture);
     this.gl.deleteTexture(this.curveTexture);

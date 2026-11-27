@@ -2,6 +2,10 @@ export interface ScopeData {
   r: Uint32Array;
   g: Uint32Array;
   b: Uint32Array;
+  /** How many pixels sit at each of 256 brightness levels */
+  luma: Uint32Array;
+  /** The average colour strength of the photo, from 0 (grey) to 1 (vivid) */
+  meanSat: number;
   /** Tallest bin, ignoring the two end bins so clipped pixels don't flatten the rest */
   histMax: number;
   columns: number;
@@ -18,7 +22,9 @@ export function computeScopes(
   const r = new Uint32Array(256);
   const g = new Uint32Array(256);
   const b = new Uint32Array(256);
+  const luma = new Uint32Array(256);
   const waveform = new Uint16Array(width * 256);
+  let satSum = 0;
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -29,8 +35,11 @@ export function computeScopes(
       r[red]++;
       g[green]++;
       b[blue]++;
-      const luma = Math.round(0.2126 * red + 0.7152 * green + 0.0722 * blue);
-      waveform[x * 256 + luma]++;
+      const level = Math.round(0.2126 * red + 0.7152 * green + 0.0722 * blue);
+      luma[level]++;
+      waveform[x * 256 + level]++;
+      const top = Math.max(red, green, blue);
+      if (top > 0) satSum += (top - Math.min(red, green, blue)) / top;
     }
   }
 
@@ -42,5 +51,15 @@ export function computeScopes(
     if (waveform[k] > waveMax) waveMax = waveform[k];
   }
 
-  return { r, g, b, histMax, columns: width, waveform, waveMax };
+  return {
+    r,
+    g,
+    b,
+    luma,
+    meanSat: width * height > 0 ? satSum / (width * height) : 0,
+    histMax,
+    columns: width,
+    waveform,
+    waveMax,
+  };
 }
